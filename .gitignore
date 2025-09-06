@@ -1,0 +1,21 @@
+# Python cache
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
+
+# Test cache
+*.coverage
+.cache/
+
+# IDEs and editors
+.idea/
+.vscode/
+
+# Credentials
+.git-credentials.env
+src/utils/open_router/output.txt
