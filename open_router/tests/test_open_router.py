@@ -2,17 +2,16 @@ import os
 import sys
 from pathlib import Path
 
-from utils.open_router import __main__ as open_router
+from open_router import __main__ as open_router
 
 
 def run_test_invalid_token():
   print("[DEBUG] run_test_invalid_token started")
 
-  # Force an invalid token
-  os.environ["OPENROUTER_KEY"] = "ABC123"
-  sys.argv = ["__main__.py", "--prompt", "Say hello!"]
+  # Do not touch global environment, just pass fake token as CLI arg
+  sys.argv = ["__main__.py", "--prompt", "Say hello!", "--token", "ABC123"]
 
-  base = Path(__file__).resolve().parents[3]  # project root: utils/
+  base = Path(__file__).resolve().parents[2]  # repo root: utils/
   router_dir = base / 'open_router'
   output_file = router_dir / 'output.txt'
   if output_file.exists():
@@ -34,6 +33,6 @@ def run_test_invalid_token():
 
 
 if __name__ == "__main__":
-  print("[HINT] This test should be run with: python3 -m utils.open_router.tests.test_open_router")
+  print("[HINT] Run this test from repo root with: python3 -m open_router.tests.test_open_router")
   rc = run_test_invalid_token()
   sys.exit(rc)

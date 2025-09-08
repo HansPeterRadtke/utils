@@ -1,7 +1,7 @@
 import sys
 import textwrap
 
-from utils.parser import extract_python
+from parser import extract_python
 
 
 def run_test_extract_python_single_block():
@@ -71,5 +71,5 @@ def run_all_tests():
 
 
 if __name__ == "__main__":
-  print("[HINT] This test should be run with: python3 -m utils.parser.tests.test_parser")
+  print("[HINT] Run this test from repo root with: python3 -m parser.tests.test_parser")
   sys.exit(run_all_tests())

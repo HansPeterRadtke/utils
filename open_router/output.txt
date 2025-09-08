@@ -1,1 +1,0 @@
- Hello! It's great to meet you. I'm OpenRouter, a model trained to help answer questions and assist with various tasks. How can I help you today?

@@ -1,7 +1,7 @@
 import sys
 
-import utils.open_router.tests.test_open_router as tor
-import utils.parser.tests.test_parser as tp
+import open_router.tests.test_open_router as tor
+import parser.tests.test_parser as tp
 
 
 def run_all_utils_tests():
@@ -21,5 +21,5 @@ def run_all_utils_tests():
 
 
 if __name__ == "__main__":
-  print("[HINT] This test suite should be run with: python3 -m utils.tests.test_all_utils")
+  print("[HINT] Run this suite from repo root with: python3 -m tests.test_all_utils")
   sys.exit(run_all_utils_tests())
