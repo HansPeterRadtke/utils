@@ -6,7 +6,6 @@ import sys
 import requests
 
 TOKEN = os.getenv("OPENROUTER_KEY")
-TEST_MODE = os.getenv("LLM_TEST_MODE") in ("1", "true", "yes", "True")
 
 ALLOWED_PARAMS = {
     'temperature': float,
@@ -82,15 +81,6 @@ def main():
     config_path = os.path.join(script_dir, args.config)
     prompt_file_path = os.path.join(script_dir, args.prompt_file)
     output_path = os.path.join(script_dir, "output.txt")
-
-    if TEST_MODE:
-        print("[DEBUG] TEST_MODE enabled. Generating fake output...")
-        with open(prompt_file_path, 'r', encoding='utf-8') as f:
-            prompt = f.read()
-        fake_response = f"Here is your code:\n```python\nprint(\"Hello world\")\n```\nIf you can read this, the test passed.\nPrompt was:\n{prompt}"
-        with open(output_path, "w", encoding="utf-8") as out:
-            out.write(fake_response)
-        return
 
     cfg = load_config(config_path)
     token = args.token or cfg.get('token') or TOKEN
