@@ -71,6 +71,9 @@ def main():
     p.add_argument('--prompt', '-p')
     p.add_argument('--token', '-t')
     p.add_argument('--model', '-m')
+    p.add_argument('--files', nargs='+', help='List of file paths to include in the prompt')
+    p.add_argument('--dump_prompt', help='Path to write the full constructed prompt for debugging')
+    p.add_argument('--debug_prompt', action='store_true', help='Print the full constructed prompt before sending')
     for param in ALLOWED_PARAMS:
         if param == 'safe_prompt':
             p.add_argument(f'--{param}', action='store_true')
@@ -86,18 +89,49 @@ def main():
     token = args.token or cfg.get('token') or TOKEN
     model = args.model or cfg.get('model', 'mistralai/mistral-7b-instruct:free')
 
-    if not token:
-        print("[HINT] Please set the OPENROUTER_KEY environment variable.")
-        print("[HINT] See README.md for environment setup instructions.")
-        sys.exit('API token missing (provide via --token, config.txt, or environment)')
-
+    # Build base prompt content
     if args.prompt is not None:
-        prompt = args.prompt
+        prompt_content = args.prompt
     else:
         if not os.path.exists(prompt_file_path):
             sys.exit('prompt not provided and prompt.txt not found')
         with open(prompt_file_path, 'r', encoding='utf-8') as f:
-            prompt = f.read()
+            prompt_content = f.read()
+
+    # Handle file list inclusion
+    file_list_content = ""
+    if args.files is not None:
+        for fpath in args.files:
+            if not os.path.exists(fpath):
+                sys.exit(f"[ERROR] File not found: {fpath}")
+            if not os.path.isfile(fpath):
+                sys.exit(f"[ERROR] Not a file: {fpath}")
+            try:
+                with open(fpath, 'r', encoding='utf-8') as f:
+                    file_data = f.read()
+            except Exception as e:
+                sys.exit(f"[ERROR] Failed to read file {fpath}: {e}")
+
+            file_list_content += f"Filename: {fpath}\n```\n{file_data}\n```\n\n"
+
+    # Final prompt = file list first, then actual prompt
+    prompt = file_list_content + "\n" + prompt_content
+
+    # Debug / dump prompt if requested
+    if args.debug_prompt:
+        print("[DEBUG] Final constructed prompt:\n")
+        print(prompt)
+    if args.dump_prompt:
+        try:
+            with open(args.dump_prompt, 'w', encoding='utf-8') as dbg:
+                dbg.write(prompt)
+        except Exception as e:
+            sys.stderr.write(f"[ERROR] Failed to write dump_prompt file: {e}\n")
+
+    if not token:
+        print("[HINT] Please set the OPENROUTER_KEY environment variable.")
+        print("[HINT] See README.md for environment setup instructions.")
+        sys.exit('API token missing (provide via --token, config.txt, or environment)')
 
     payload = {
         'model': model,

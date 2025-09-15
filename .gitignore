@@ -18,4 +18,5 @@ dist/
 
 # Credentials
 .git-credentials.env
-src/utils/open_router/output.txt
+open_router/output.txt
+open_router/debug_prompt.txt
