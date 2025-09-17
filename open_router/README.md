@@ -80,7 +80,6 @@ max_tokens=512
 | `--presence_penalty` | Penalizes tokens already present in the text (float).                                          |
 | `--frequency_penalty`| Penalizes frequent tokens (float).                                                              |
 | `--max_tokens`       | Maximum number of tokens to generate (int).                                                    |
-| `--safe_prompt`      | Use a "safe" system prompt to reduce harmful output (`--safe_prompt` flag, no value needed).   |
 
 ---
 
