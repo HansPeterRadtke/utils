@@ -1,2 +1,0 @@
-# Auto-generated test prompt for OpenRouter
-Write a simple Hello World program in Python.
