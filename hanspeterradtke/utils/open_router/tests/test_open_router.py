@@ -2,7 +2,7 @@ import os
 import sys
 from pathlib import Path
 
-from open_router import __main__ as open_router
+from hanspeterradtke.utils.open_router import __main__ as open_router
 
 
 def run_test_invalid_token():
