@@ -18,44 +18,43 @@ It allows you to send prompts to large language models, retrieve responses, and 
 
 ---
 
-## Installation
+## Installation (Editable Mode)
 
-1. Clone or place this folder inside your project.  
-2. Ensure you have **Python 3.8+** installed.  
-3. Install dependencies:
-   ```bash
-   pip install requests
-   ```
-4. Set your OpenRouter API key:
-   ```bash
-   export OPENROUTER_KEY="your_api_key_here"
-   ```
+This CLI is intended to be installed in **editable mode** so it can be used from anywhere on your system:
+
+```bash
+pip install -e .
+```
+
+Make sure you're inside the repository root when running the command.
 
 ---
 
 ## Usage
 
-Run the CLI with:
+Run the CLI from **anywhere**:
 
 ```bash
-python3 -m open_router --prompt "Hello AI!"
+python3 -m hanspeterradtke.utils.open_router --prompt "Hello AI!"
 ```
 
 Or use a prompt file:
 
 ```bash
-python3 -m open_router --prompt_file prompt.txt
+python3 -m hanspeterradtke.utils.open_router --prompt_file prompt.txt
 ```
 
-Output will be written to **`output.txt`** inside this folder.
+Output will be written to **`output.txt`** in your current working directory.
 
 ---
 
 ## Configuration
 
-You can provide a `config.txt` in the same folder with default values.  
-Example:
+You can place a `config.txt` in **any directory** where you're running the CLI.
 
+The CLI looks for this file in the **current working directory**, or you can specify a custom path using `--config`.
+
+Example contents:
 ```
 token=YOUR_API_KEY
 model=mistralai/mistral-7b-instruct:free
@@ -70,7 +69,7 @@ max_tokens=512
 
 | Option               | Description                                                                                   |
 |----------------------|-----------------------------------------------------------------------------------------------|
-| `--config, -c`       | Path to config file (default: `config.txt`).                                                   |
+| `--config, -c`       | Path to config file (default: `./config.txt` in current directory).                           |
 | `--prompt, -p`       | Direct prompt string.                                                                          |
 | `--prompt_file, -f`  | Path to prompt file (default: `prompt.txt`).                                                   |
 | `--token, -t`        | API key (overrides environment/config).                                                        |
@@ -86,7 +85,7 @@ max_tokens=512
 ## Example
 
 ```bash
-python3 -m open_router \
+python3 -m hanspeterradtke.utils.open_router \
   --prompt "Write a haiku about Raspberry Pi." \
   --model openai/gpt-3.5-turbo \
   --temperature 0.8 \
@@ -102,7 +101,7 @@ This will send the request and save the result into `output.txt`.
 Run tests from repo root:
 
 ```bash
-python3 -m open_router.tests.test_open_router
+python3 -m hanspeterradtke.utils.open_router.tests.test_open_router
 ```
 
 The test suite includes:
