@@ -1,74 +1,50 @@
 # hanspeterradtke-utils
 
-This repository contains general-purpose Python utility modules.  
-Each module is self-contained and has its own `README.md` inside its folder for details.
+This repository contains general-purpose Python utility modules. Each module is self-contained and includes its own `README.md` with detailed usage instructions.
 
 ---
 
 ## Installation
 
-### 1. Working directly on this repository
+Clone the repository and install in editable mode:
 
-Clone and install in editable mode:
-
-```bash
+```
 git clone https://github.com/HansPeterRadtke/utils.git
 cd utils
 pip install -e .
 ```
 
-This will install the package locally as `hanspeterradtke.utils`, so you can develop and test the modules.
+This installs the utilities under the namespace `hanspeterradtke.utils`, allowing direct usage or import.
 
 ---
 
-### 2. Using this repository in another project
+## Modules
 
-To integrate these utilities into another project, add this repository as a dependency.
+### [open_router](./hanspeterradtke/utils/open_router/README.md)
+Command-line interface to the OpenRouter API. Allows sending prompts to language models, fetching credits, listing models, and includes debugging and file-based prompt construction.
 
-**With `pyproject.toml`:**
+### [parser](./hanspeterradtke/utils/parser/README.md)
+Extracts Python code blocks from markdown-style text, especially used to parse OpenRouter responses and test outputs.
 
-```toml
-[project]
-dependencies = [
-  "hanspeterradtke-utils @ git+https://github.com/HansPeterRadtke/utils.git"
-]
-```
-
-**Or with `requirements.txt`:**
-
-```
-hanspeterradtke-utils @ git+https://github.com/HansPeterRadtke/utils.git
-```
-
-When you install your main project, pip will automatically fetch and install this utils repository.
+### [table_reader](./hanspeterradtke/utils/table_reader/README.md)
+CLI tool to explore structured data in JSON (list-of-dicts) or Pandas DataFrame `.pkl` files. Offers filtering, slicing, and descriptive statistics.
 
 ---
 
-## Usage in Python
+## Usage
 
-The modules are available under the namespace `hanspeterradtke.utils`.
+Each module can be run as a standalone CLI:
 
-Example:
-
-```python
-import hanspeterradtke.utils.open_router as sut
-
-client = sut.Client()
+```
+python3 -m hanspeterradtke.utils.<module>
 ```
 
-You can import directly from submodules as well:
+Examples:
+- `python3 -m hanspeterradtke.utils.open_router --prompt "Hello"`
+- `python3 -m hanspeterradtke.utils.parser`
+- `python3 -m hanspeterradtke.utils.table_reader data.json --list-columns`
 
-```python
-from hanspeterradtke.utils.parser import extract_python
-```
-
-In test scripts, you may alias imports (e.g. `sut`) for readability and consistency.
-
----
-
-## Module Documentation
-
-Each module has its own `README.md` inside its folder with details on usage, features, and tests.
+Refer to each module’s README (linked above) for full details on configuration, parameters, and test execution.
 
 ---
 
