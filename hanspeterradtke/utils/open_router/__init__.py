@@ -181,8 +181,10 @@ def main():
 
     data = r.json()
     try:
+        d = data['choices'][0]['message']['content']
+        print(d)
         with open(output_path, "w", encoding="utf-8") as out:
-            out.write(data['choices'][0]['message']['content'])
+            out.write(d)
     except Exception:
         with open(output_path, "w", encoding="utf-8") as out:
             out.write(json.dumps(data, indent=2))
