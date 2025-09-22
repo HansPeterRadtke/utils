@@ -35,13 +35,13 @@ Make sure you're inside the repository root when running the command.
 Run the CLI from **anywhere**:
 
 ```bash
-python3 -m hanspeterradtke.utils.open_router --prompt "Hello AI!"
+python3 -m hpr.utils.open_router --prompt "Hello AI!"
 ```
 
 Or use a prompt file:
 
 ```bash
-python3 -m hanspeterradtke.utils.open_router --prompt_file prompt.txt
+python3 -m hpr.utils.open_router --prompt_file prompt.txt
 ```
 
 Output will be written to **`output.txt`** in your current working directory.
@@ -85,7 +85,7 @@ max_tokens=512
 ## Example
 
 ```bash
-python3 -m hanspeterradtke.utils.open_router \
+python3 -m hpr.utils.open_router \
   --prompt "Write a haiku about Raspberry Pi." \
   --model openai/gpt-3.5-turbo \
   --temperature 0.8 \
@@ -101,7 +101,7 @@ This will send the request and save the result into `output.txt`.
 Run tests from repo root:
 
 ```bash
-python3 -m hanspeterradtke.utils.open_router.tests.test_open_router
+python3 -m hpr.utils.open_router.tests.test_open_router
 ```
 
 The test suite includes:

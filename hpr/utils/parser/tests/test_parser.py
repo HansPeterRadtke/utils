@@ -1,7 +1,7 @@
 import sys
 import textwrap
 
-from hanspeterradtke.utils.parser import extract_python
+from hpr.utils.parser import extract_python
 
 
 def run_test_extract_python_single_block():

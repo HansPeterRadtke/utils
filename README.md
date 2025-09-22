@@ -1,4 +1,4 @@
-# hanspeterradtke-utils
+# hpr-utils
 
 This repository contains general-purpose Python utility modules. Each module is self-contained and includes its own `README.md` with detailed usage instructions.
 
@@ -14,19 +14,19 @@ cd utils
 pip install -e .
 ```
 
-This installs the utilities under the namespace `hanspeterradtke.utils`, allowing direct usage or import.
+This installs the utilities under the namespace `hpr.utils`, allowing direct usage or import.
 
 ---
 
 ## Modules
 
-### [open_router](./hanspeterradtke/utils/open_router/README.md)
+### [open_router](./hpr/utils/open_router/README.md)
 Command-line interface to the OpenRouter API. Allows sending prompts to language models, fetching credits, listing models, and includes debugging and file-based prompt construction.
 
-### [parser](./hanspeterradtke/utils/parser/README.md)
+### [parser](./hpr/utils/parser/README.md)
 Extracts Python code blocks from markdown-style text, especially used to parse OpenRouter responses and test outputs.
 
-### [table_reader](./hanspeterradtke/utils/table_reader/README.md)
+### [table_reader](./hpr/utils/table_reader/README.md)
 CLI tool to explore structured data in JSON (list-of-dicts) or Pandas DataFrame `.pkl` files. Offers filtering, slicing, and descriptive statistics.
 
 ---
@@ -36,13 +36,13 @@ CLI tool to explore structured data in JSON (list-of-dicts) or Pandas DataFrame 
 Each module can be run as a standalone CLI:
 
 ```
-python3 -m hanspeterradtke.utils.<module>
+python3 -m hpr.utils.<module>
 ```
 
 Examples:
-- `python3 -m hanspeterradtke.utils.open_router --prompt "Hello"`
-- `python3 -m hanspeterradtke.utils.parser`
-- `python3 -m hanspeterradtke.utils.table_reader data.json --list-columns`
+- `python3 -m hpr.utils.open_router --prompt "Hello"`
+- `python3 -m hpr.utils.parser`
+- `python3 -m hpr.utils.table_reader data.json --list-columns`
 
 Refer to each module’s README (linked above) for full details on configuration, parameters, and test execution.
 

@@ -1,8 +1,8 @@
 import sys
 
-#import hanspeterradtke.utils                 as ut
-import hanspeterradtke.utils.open_router.tests.test_open_router as tor
-import hanspeterradtke.utils.parser     .tests.test_parser      as tp
+#import hpr.utils                 as ut
+import hpr.utils.open_router.tests.test_open_router as tor
+import hpr.utils.parser     .tests.test_parser      as tp
 
 
 def run_all_utils_tests():

@@ -6,7 +6,7 @@ A command-line utility to explore structured tabular data. Supports JSON list-of
 
 ## Installation
 
-This module is part of the `hanspeterradtke-utils` package.
+This module is part of the `hpr-utils` package.
 
 Install in editable mode (from repo root):
 
@@ -25,11 +25,11 @@ pip install -e .
 
 Run from anywhere:
 
-python3 -m hanspeterradtke.utils.table_reader [file] [options]
+python3 -m hpr.utils.table_reader [file] [options]
 
 Example:
 
-python3 -m hanspeterradtke.utils.table_reader data.json --list-columns --head 5
+python3 -m hpr.utils.table_reader data.json --list-columns --head 5
 
 ---
 
@@ -52,13 +52,13 @@ python3 -m hanspeterradtke.utils.table_reader data.json --list-columns --head 5
 ## Examples
 
 Show summary:
-python3 -m hanspeterradtke.utils.table_reader data.json --describe
+python3 -m hpr.utils.table_reader data.json --describe
 
 Filter:
-python3 -m hanspeterradtke.utils.table_reader data.json --filter status=active
+python3 -m hpr.utils.table_reader data.json --filter status=active
 
 Combined:
-python3 -m hanspeterradtke.utils.table_reader data.json --filter type=error --sort-by timestamp --tail 10
+python3 -m hpr.utils.table_reader data.json --filter type=error --sort-by timestamp --tail 10
 
 ---
 

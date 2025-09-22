@@ -6,7 +6,7 @@ Extracts all Python code blocks from markdown-like text content. Mostly used to 
 
 ## Installation
 
-This module is part of the `hanspeterradtke-utils` package.
+This module is part of the `hpr-utils` package.
 
 Install the full repo in editable mode (from repo root):
 
@@ -29,7 +29,7 @@ Used internally by the main script.
 
 From the repo root, run:
 
-python3 -m hanspeterradtke.utils.parser
+python3 -m hpr.utils.parser
 
 This will:
 - Read the file `open_router/output.txt`
@@ -49,7 +49,7 @@ This will:
 
 Run the full test suite from repo root:
 
-python3 -m hanspeterradtke.utils.parser.tests.test_parser
+python3 -m hpr.utils.parser.tests.test_parser
 
 Covers:
 - Single block
