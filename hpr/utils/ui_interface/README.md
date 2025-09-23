@@ -1,7 +1,7 @@
 # UI Interface
 
 A **command-line interface for interacting with windows** on X11 (LXDE on Raspberry Pi).  
-Provides functions for listing, focusing, closing, launching applications, and sending keystrokes to windows.
+Provides functions for listing, focusing, closing, launching applications, sending keystrokes, and interacting with window elements via accessibility (AT-SPI).
 
 ## Features
 - List top-level windows
@@ -9,37 +9,32 @@ Provides functions for listing, focusing, closing, launching applications, and s
 - Send keystrokes to a window
 - Close a window
 - Launch applications
+- List interactable elements (menus, buttons, text fields)
+- Type directly into document fields
+- Read contents of document fields
+- Click menus and buttons
 - Includes test scripts (automated and CLI)
 
 ## Installation
 Requires external tools:
 ```
-sudo apt install wmctrl xdotool
+sudo apt install wmctrl xdotool python3-pyatspi
 ```
 
 ## Usage
 
 ### Python Module
-```
-from hpr.utils import ui_interface as ui
+Import functions from the module:
 
-# List windows
-windows = ui.list_windows()
-for w in windows:
-    print(w)
-
-# Focus a window
-ui.focus_window(windows[0]['id'])
-
-# Send keystrokes
-ui.send_keys(windows[0]['id'], "Hello!")
-
-# Launch an application
-ui.launch_app("lxterminal")
-
-# Close a window
-ui.close_window(windows[0]['id'])
-```
+- `list_windows()` → list top-level windows
+- `focus_window(win_id)` → focus a window
+- `send_keys(win_id, text)` → send keystrokes
+- `launch_app(command)` → launch applications
+- `close_window(win_id)` → close a window
+- `list_interactable_elements(app_name)` → list menus, buttons, text fields
+- `type_into_document(app_name, text)` → type into the main text editor area
+- `read_document_text(app_name)` → read document contents
+- `click_element(elements, element_id)` → click a menu, menu item, or button
 
 ### CLI Test
 Run from the module test folder:
