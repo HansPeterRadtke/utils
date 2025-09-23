@@ -29,6 +29,9 @@ Extracts Python code blocks from markdown-style text, especially used to parse O
 ### [table_reader](./hpr/utils/table_reader/README.md)
 CLI tool to explore structured data in JSON (list-of-dicts) or Pandas DataFrame `.pkl` files. Offers filtering, slicing, and descriptive statistics.
 
+### [ui_interface](./hpr/utils/ui_interface/README.md)
+Command-line and Python interface for interacting with windows on X11 (LXDE). Supports listing, focusing, sending keystrokes, launching apps, and closing windows.
+
 ---
 
 ## Usage
@@ -43,6 +46,7 @@ Examples:
 - `python3 -m hpr.utils.open_router --prompt "Hello"`
 - `python3 -m hpr.utils.parser`
 - `python3 -m hpr.utils.table_reader data.json --list-columns`
+- `python3 -m hpr.utils.ui_interface list`
 
 Refer to each module’s README (linked above) for full details on configuration, parameters, and test execution.
 
