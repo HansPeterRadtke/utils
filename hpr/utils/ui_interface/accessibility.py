@@ -1,18 +1,11 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-"""
-Accessibility functions for UI Interface
-
-Uses pyatspi (AT-SPI) to introspect applications and list interactable elements,
-and interact with them (click, type, read).
-"""
-
 import pyatspi
 import subprocess
 
 
-def list_interactable_elements(app_name):
+def list_visible_elements(app_name):
     apps = pyatspi.Registry.getDesktop(0)
     target = None
     for app in apps:
@@ -31,9 +24,11 @@ def list_interactable_elements(app_name):
         try:
             role = node.getRoleName()
             name = node.name or ""
+            state_set = node.getState()
         except Exception:
             return
-        if role == "text":
+
+        if (role in ("menu", "menu item", "button", "text")) and (state_set.contains(pyatspi.STATE_SHOWING) or state_set.contains(pyatspi.STATE_VISIBLE)):
             elements.append({
                 "id": f"E{idx}",
                 "role": role,
@@ -41,21 +36,23 @@ def list_interactable_elements(app_name):
                 "node": node
             })
             idx += 1
+
         if depth < 15:
             for child in node:
                 walk(child, depth + 1)
+
     walk(target)
     return elements
 
 
 def type_into_document(app_name, text):
-    elems = list_interactable_elements(app_name)
+    elems = list_visible_elements(app_name)
     for e in elems:
-        if e['role'] == 'text' and 'search' not in (e['name'] or '').lower():
+        if e['role'] == 'text':
             try:
                 editable = e['node'].queryEditableText()
                 editable.insertText(0, text, len(text))
-                print(f"[INFO] Typed into document element {e['id']} via AT-SPI: {text}")
+                print(f"[INFO] Typed into visible text element {e['id']}: {text}")
                 return True
             except Exception as ex:
                 print(f"[WARN] AT-SPI typing failed for element {e['id']}: {ex}")
@@ -69,19 +66,17 @@ def type_into_document(app_name, text):
 
 
 def read_document_text(app_name):
-    elems = list_interactable_elements(app_name)
-    found = False
+    elems = list_visible_elements(app_name)
     for e in elems:
         if e['role'] == 'text':
             try:
                 text_iface = e['node'].queryText()
                 contents = text_iface.getText(0, -1)
-                print(f"[INFO] Element {e['id']} | name='{e['name']}' | text: {contents}")
-                found = True
+                print(f"[INFO] Read from visible text element {e['id']}: {contents}")
+                return contents
             except Exception as ex:
-                print(f"[WARN] Could not read text from element {e['id']}: {ex}")
-    if not found:
-        print("[WARN] No text fields found at all.")
+                print(f"[WARN] Could not read from element {e['id']}: {ex}")
+    print("[WARN] No visible document text field found.")
     return None
 
 
@@ -91,7 +86,7 @@ def click_element(elements, element_id):
             try:
                 action = e["node"].queryAction()
                 action.doAction(0)
-                print(f"[INFO] Clicked element {element_id} ({e['role']} - {e['name']})")
+                print(f"[INFO] Clicked visible element {element_id} ({e['role']} - {e['name']})")
                 return True
             except Exception as ex:
                 print(f"[ERROR] Could not click element {element_id}: {ex}")
@@ -101,7 +96,10 @@ def click_element(elements, element_id):
 
 
 if __name__ == "__main__":
-    print("[DEBUG] Typing into gedit document...")
-    type_into_document("gedit", "Yet another line via AT-SPI or fallback.\n")
-    print("[DEBUG] Reading all text fields...")
+    print("[DEBUG] Listing visible elements in gedit (correct state checks)...")
+    elems = list_visible_elements("gedit")
+    for e in elems:
+        print(f"{e['id']} | role={e['role']} | name={e['name']}")
+    print("[DEBUG] Typing and reading from document...")
+    type_into_document("gedit", "Visible text test with proper state.\n")
     read_document_text("gedit")
