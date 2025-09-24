@@ -49,29 +49,12 @@ This will:
 - List windows
 - List available programs
 
-### CLI Test
-Run from the module test folder:
-```
-python3 cli_test.py list
-python3 cli_test.py focus <window_id>
-python3 cli_test.py close <window_id>
-python3 cli_test.py launch <command>
-python3 cli_test.py send <window_id> <text>
-```
-
-### Automated Test
-```
-python3 test_ui.py
-```
-This will:
-- List windows
-- Focus the first window
-- Send keystrokes
-- Perform a simple system call
-- List visible interactable elements of gedit
-- Write and read text from the document field
-- List available programs
-- Launch a program
+### Tests
+- `tests/full_test.py` → Integration test
+  - Lists programs and windows
+  - If gedit is open, writes a test string to the text buffer
+  - Reads the buffer back
+  - Verifies roundtrip success
 
 ## License
 MIT
