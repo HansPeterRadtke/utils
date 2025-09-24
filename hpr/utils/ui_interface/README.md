@@ -1,6 +1,6 @@
 # UI Interface
 
-A **command-line interface for interacting with windows** on X11 (LXDE on Raspberry Pi).  
+A **command-line interface for interacting with windows and applications** on X11 (LXDE on Raspberry Pi).  
 Provides functions for listing, focusing, closing, launching applications, sending keystrokes, and interacting with window elements via accessibility (AT-SPI).
 
 ## Features
@@ -8,7 +8,8 @@ Provides functions for listing, focusing, closing, launching applications, sendi
 - Focus a window
 - Send keystrokes to a window
 - Close a window
-- Launch applications
+- Launch applications (from command or from system menu)
+- List available programs from the system start menu (`.desktop` files)
 - List interactable elements (menus, buttons, text fields)
 - Filter only **visible** interactable elements (clean output)
 - Type directly into document fields
@@ -30,12 +31,23 @@ Import functions from the module:
 - `list_windows()` → list top-level windows
 - `focus_window(win_id)` → focus a window
 - `send_keys(win_id, text)` → send keystrokes
-- `launch_app(command)` → launch applications
+- `launch_app(command)` → launch an application by command
 - `close_window(win_id)` → close a window
 - `list_visible_elements(app_name)` → list only visible menus, buttons, and text fields
 - `type_into_document(app_name, text)` → type into the main text editor area
 - `read_document_text(app_name)` → read document contents
 - `click_element(elements, element_id)` → click a menu, menu item, or button
+- `list_available_programs()` → list all available programs from system start menu entries
+- `launch_program(exec_cmd)` → launch a program by its menu entry command
+
+### CLI
+Run directly as a module:
+```
+python3 -m hpr.utils.ui_interface
+```
+This will:
+- List windows
+- List available programs
 
 ### CLI Test
 Run from the module test folder:
@@ -58,6 +70,8 @@ This will:
 - Perform a simple system call
 - List visible interactable elements of gedit
 - Write and read text from the document field
+- List available programs
+- Launch a program
 
 ## License
 MIT
