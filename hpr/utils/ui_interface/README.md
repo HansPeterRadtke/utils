@@ -1,33 +1,29 @@
-# UI Interface
+# UI Interface Module
 
-A **command-line interface for interacting with windows and applications** on X11 (LXDE on Raspberry Pi).  
-Provides functions for listing, focusing, closing, launching applications, sending keystrokes, and interacting with window elements via accessibility (AT-SPI).
+Interact with windows and applications on X11 (LXDE on Raspberry Pi). Provides commands for listing, focusing, closing, launching applications, sending keystrokes, and interacting with window elements via accessibility (AT-SPI).
 
-## Features
-- List top-level windows
-- Focus a window
-- Send keystrokes to a window
-- Close a window
-- Launch applications (from command or from system menu)
-- List available programs from the system start menu (`.desktop` files)
-- List interactable elements (menus, buttons, text fields)
-- Filter only **visible** interactable elements (clean output)
-- Type directly into document fields
-- Read contents of document fields
-- Click menus and buttons
-- Includes test scripts (automated and CLI)
+---
 
 ## Installation
-Requires external tools:
+
+This module is part of the `hpr-utils` package.
+
+Install the full repo in editable mode (from repo root):
+
+```
+pip install -e .
+```
+
+Dependencies:
 ```
 sudo apt install wmctrl xdotool python3-pyatspi
 ```
 
-## Usage
+---
 
-### Python Module
-Import functions from the module:
+## Functionality
 
+### Python Functions
 - `list_windows()` → list top-level windows
 - `focus_window(win_id)` → focus a window
 - `send_keys(win_id, text)` → send keystrokes
@@ -40,21 +36,46 @@ Import functions from the module:
 - `list_available_programs()` → list all available programs from system start menu entries
 - `launch_program(exec_cmd)` → launch a program by its menu entry command
 
-### CLI
-Run directly as a module:
+---
+
+## CLI Usage
+
+From the repo root, run:
+
 ```
 python3 -m hpr.utils.ui_interface
 ```
+
 This will:
-- List windows
+- List open windows
 - List available programs
 
-### Tests
-- `tests/full_test.py` → Integration test
-  - Lists programs and windows
-  - If gedit is open, writes a test string to the text buffer
-  - Reads the buffer back
-  - Verifies roundtrip success
+---
 
-## License
-MIT
+## Files
+
+- `__init__.py`: Core functionality
+- `__main__.py`: CLI wrapper
+- `tests/full_test.py`: Integration test
+
+---
+
+## Tests
+
+Run the integration test from repo root:
+
+```
+python3 -m hpr.utils.ui_interface.tests.full_test
+```
+
+Covers:
+- Listing programs
+- Listing windows
+- If gedit is open: writing, reading, and verifying text roundtrip
+
+---
+
+## Notes
+
+- Only works on X11 with AT-SPI accessibility enabled.
+- If gedit is not running, the text roundtrip test is skipped.
