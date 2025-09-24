@@ -33,10 +33,8 @@ def list_windows():
                     windows.append({"id": win_id, "desktop": desktop, "pid": pid, "title": title})
             return windows
         else:
-            print("[ERROR] wmctrl failed")
             return []
-    except Exception as ex:
-        print(f"[ERROR] Could not list windows: {ex}")
+    except Exception:
         return []
 
 
@@ -44,8 +42,7 @@ def focus_window(win_id):
     try:
         subprocess.run(["wmctrl", "-ia", win_id])
         return True
-    except Exception as ex:
-        print(f"[ERROR] Could not focus window {win_id}: {ex}")
+    except Exception:
         return False
 
 
@@ -53,8 +50,7 @@ def send_keys(win_id, text):
     try:
         subprocess.run(["xdotool", "type", "--window", win_id, text])
         return True
-    except Exception as ex:
-        print(f"[ERROR] Could not send keys: {ex}")
+    except Exception:
         return False
 
 
@@ -62,8 +58,7 @@ def launch_app(command):
     try:
         os.system(f"{command} & disown")
         return True
-    except Exception as ex:
-        print(f"[ERROR] Could not launch app: {ex}")
+    except Exception:
         return False
 
 
@@ -71,8 +66,7 @@ def close_window(win_id):
     try:
         subprocess.run(["wmctrl", "-ic", win_id])
         return True
-    except Exception as ex:
-        print(f"[ERROR] Could not close window {win_id}: {ex}")
+    except Exception:
         return False
 
 
@@ -87,10 +81,8 @@ def list_visible_elements(app_name):
         return []
 
     elements = []
-    idx = 1
 
     def walk(node, depth=0):
-        nonlocal idx
         try:
             role = node.getRoleName()
             name = node.name or ""
@@ -100,12 +92,11 @@ def list_visible_elements(app_name):
 
         if (role in ("menu", "menu item", "button", "text")) and (state_set.contains(pyatspi.STATE_SHOWING) or state_set.contains(pyatspi.STATE_VISIBLE)):
             elements.append({
-                "id": f"E{idx}",
+                "id": str(hash(node)),  # use real unique identifier
                 "role": role,
                 "name": name,
                 "node": node
             })
-            idx += 1
 
         if depth < 15:
             for child in node:
