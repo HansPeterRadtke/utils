@@ -4,6 +4,7 @@
 import os
 import pyatspi
 import subprocess
+import argparse
 
 __all__ = [
   "list_windows",
@@ -12,11 +13,15 @@ __all__ = [
   "launch_app",
   "close_window",
   "list_visible_elements",
+  "get_all_elements",
+  "find_elements",
+  "get_all_editable",
   "type_into_document",
   "read_document_text",
   "click_element",
   "list_available_programs",
-  "launch_program"
+  "launch_program",
+  "main"
 ]
 
 
@@ -70,6 +75,28 @@ def close_window(win_id):
         return False
 
 
+def _walk_elements(node, elements, depth=0, include_invisible=True):
+    try:
+        role = node.getRoleName()
+        name = node.name or ""
+        state_set = node.getState()
+    except Exception:
+        return
+
+    if include_invisible or state_set.contains(pyatspi.STATE_SHOWING) or state_set.contains(pyatspi.STATE_VISIBLE):
+        elements.append({
+            "id": str(hash(node)),
+            "role": role,
+            "name": name,
+            "node": node,
+            "depth": depth
+        })
+
+    if depth < 30:
+        for child in node:
+            _walk_elements(child, elements, depth + 1, include_invisible)
+
+
 def list_visible_elements(app_name):
     apps = pyatspi.Registry.getDesktop(0)
     target = None
@@ -81,35 +108,57 @@ def list_visible_elements(app_name):
         return []
 
     elements = []
-
-    def walk(node, depth=0):
-        try:
-            role = node.getRoleName()
-            name = node.name or ""
-            state_set = node.getState()
-        except Exception:
-            return
-
-        if (role in ("menu", "menu item", "button", "text")) and (state_set.contains(pyatspi.STATE_SHOWING) or state_set.contains(pyatspi.STATE_VISIBLE)):
-            elements.append({
-                "id": str(hash(node)),  # use real unique identifier
-                "role": role,
-                "name": name,
-                "node": node
-            })
-
-        if depth < 15:
-            for child in node:
-                walk(child, depth + 1)
-
-    walk(target)
+    _walk_elements(target, elements, include_invisible=False)
     return elements
+
+
+def get_all_elements(app_name):
+    apps = pyatspi.Registry.getDesktop(0)
+    target = None
+    for app in apps:
+        if app_name.lower() in app.name.lower():
+            target = app
+            break
+    if not target:
+        return []
+
+    elements = []
+    _walk_elements(target, elements, include_invisible=True)
+    return elements
+
+
+def find_elements(app_name, role=None, name=None):
+    elems = get_all_elements(app_name)
+    results = []
+    for e in elems:
+        if role and e['role'] != role:
+            continue
+        if name and name.lower() not in e['name'].lower():
+            continue
+        results.append(e)
+    return results
+
+
+def get_all_editable(app_name, search_text=None):
+    elems = get_all_elements(app_name)
+    results = []
+    for e in elems:
+        try:
+            node = e['node']
+            node.queryEditableText()
+            if search_text:
+                if search_text.lower() not in (e['name'] or '').lower():
+                    continue
+            results.append(e)
+        except Exception:
+            continue
+    return results
 
 
 def type_into_document(app_name, text):
     elems = list_visible_elements(app_name)
     for e in elems:
-        if e['role'] == 'text':
+        if e['role'] in ('text', 'entry'):
             try:
                 editable = e['node'].queryEditableText()
                 editable.insertText(0, text, len(text))
@@ -126,7 +175,7 @@ def type_into_document(app_name, text):
 def read_document_text(app_name):
     elems = list_visible_elements(app_name)
     for e in elems:
-        if e['role'] == 'text':
+        if e['role'] in ('text', 'entry'):
             try:
                 text_iface = e['node'].queryText()
                 contents = text_iface.getText(0, -1)
@@ -189,3 +238,73 @@ def launch_program(exec_cmd):
         return True
     except Exception:
         return False
+
+
+def main():
+    parser = argparse.ArgumentParser(description="UI Interface CLI")
+    subparsers = parser.add_subparsers(dest="command")
+
+    subparsers.add_parser("list-windows")
+    subparsers.add_parser("list-programs")
+
+    parser_focus = subparsers.add_parser("focus-window")
+    parser_focus.add_argument("win_id")
+
+    parser_keys = subparsers.add_parser("send-keys")
+    parser_keys.add_argument("win_id")
+    parser_keys.add_argument("text")
+
+    parser_launch = subparsers.add_parser("launch-app")
+    parser_launch.add_argument("command")
+
+    parser_close = subparsers.add_parser("close-window")
+    parser_close.add_argument("win_id")
+
+    parser_visible = subparsers.add_parser("list-visible")
+    parser_visible.add_argument("app_name")
+
+    parser_all = subparsers.add_parser("list-all")
+    parser_all.add_argument("app_name")
+
+    parser_find = subparsers.add_parser("find")
+    parser_find.add_argument("app_name")
+    parser_find.add_argument("--role", default=None)
+    parser_find.add_argument("--name", default=None)
+
+    parser_editable = subparsers.add_parser("list-editable")
+    parser_editable.add_argument("app_name")
+    parser_editable.add_argument("--search", default=None)
+
+    parser_type = subparsers.add_parser("type")
+    parser_type.add_argument("app_name")
+    parser_type.add_argument("text")
+
+    parser_read = subparsers.add_parser("read")
+    parser_read.add_argument("app_name")
+
+    args = parser.parse_args()
+
+    if args.command == "list-windows":
+        print(list_windows())
+    elif args.command == "list-programs":
+        print(list_available_programs())
+    elif args.command == "focus-window":
+        print(focus_window(args.win_id))
+    elif args.command == "send-keys":
+        print(send_keys(args.win_id, args.text))
+    elif args.command == "launch-app":
+        print(launch_app(args.command))
+    elif args.command == "close-window":
+        print(close_window(args.win_id))
+    elif args.command == "list-visible":
+        print(list_visible_elements(args.app_name))
+    elif args.command == "list-all":
+        print(get_all_elements(args.app_name))
+    elif args.command == "find":
+        print(find_elements(args.app_name, role=args.role, name=args.name))
+    elif args.command == "list-editable":
+        print(get_all_editable(args.app_name, args.search))
+    elif args.command == "type":
+        print(type_into_document(args.app_name, args.text))
+    elif args.command == "read":
+        print(read_document_text(args.app_name))

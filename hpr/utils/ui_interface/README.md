@@ -1,81 +1,75 @@
 # UI Interface Module
 
-Interact with windows and applications on X11 (LXDE on Raspberry Pi). Provides commands for listing, focusing, closing, launching applications, sending keystrokes, and interacting with window elements via accessibility (AT-SPI).
+The **UI Interface** module provides functionality to inspect and interact with running applications on Wayland/X11 systems via AT-SPI and command line tools. It can be used both as a Python library and from the command line.
 
----
+## Python Usage
 
-## Installation
+```python
+from hpr.utils import ui_interface as ui
 
-This module is part of the `hpr-utils` package.
+# List open windows
+windows = ui.list_windows()
 
-Install the full repo in editable mode (from repo root):
+# Focus a window
+ui.focus_window(windows[0]['id'])
 
+# Send keys to a window
+ui.send_keys(windows[0]['id'], "Hello World")
+
+# Launch an application
+ui.launch_app("gedit")
+
+# Close a window
+ui.close_window(windows[0]['id'])
+
+# List visible elements in an application
+ui.list_visible_elements("gedit")
+
+# List all elements (including invisible ones)
+ui.get_all_elements("gedit")
+
+# Find elements by role or name
+ui.find_elements("gedit", role="menu", name="File")
+
+# List editable elements
+ui.get_all_editable("firefox", search_text="address")
+
+# Type into a document or text field
+ui.type_into_document("gedit", "Test output")
+
+# Read document text
+print(ui.read_document_text("gedit"))
+
+# Click on a menu or button
+ui.click_element(elements, element_id)
+
+# List available programs from desktop entries
+programs = ui.list_available_programs()
+
+# Launch a program by exec command
+ui.launch_program(programs[0]['exec'])
 ```
-pip install -e .
-```
-
-Dependencies:
-```
-sudo apt install wmctrl xdotool python3-pyatspi
-```
-
----
-
-## Functionality
-
-### Python Functions
-- `list_windows()` → list top-level windows
-- `focus_window(win_id)` → focus a window
-- `send_keys(win_id, text)` → send keystrokes
-- `launch_app(command)` → launch an application by command
-- `close_window(win_id)` → close a window
-- `list_visible_elements(app_name)` → list only visible menus, buttons, and text fields
-- `type_into_document(app_name, text)` → type into the main text editor area
-- `read_document_text(app_name)` → read document contents
-- `click_element(elements, element_id)` → click a menu, menu item, or button
-- `list_available_programs()` → list all available programs from system start menu entries
-- `launch_program(exec_cmd)` → launch a program by its menu entry command
-
----
 
 ## CLI Usage
 
-From the repo root, run:
+The module can also be used from the command line:
 
-```
-python3 -m hpr.utils.ui_interface
-```
-
-This will:
-- List open windows
-- List available programs
-
----
-
-## Files
-
-- `__init__.py`: Core functionality
-- `__main__.py`: CLI wrapper
-- `tests/full_test.py`: Integration test
-
----
-
-## Tests
-
-Run the integration test from repo root:
-
-```
-python3 -m hpr.utils.ui_interface.tests.full_test
+```bash
+python3 -m hpr.utils.ui_interface <command> [arguments]
 ```
 
-Covers:
-- Listing programs
-- Listing windows
-- If gedit is open: writing, reading, and verifying text roundtrip
+### Available Commands
 
----
-
-## Notes
-
-- Only works on X11 with AT-SPI accessibility enabled.
-- If gedit is not running, the text roundtrip test is skipped.
+- `list-windows` → List all open windows
+- `list-programs` → List all available programs from desktop entries
+- `focus-window <win_id>` → Focus a specific window by ID
+- `send-keys <win_id> <text>` → Send keys to a specific window
+- `launch-app <command>` → Launch an application by command
+- `close-window <win_id>` → Close a specific window
+- `list-visible <app_name>` → List all visible elements of an application
+- `list-all <app_name>` → List all elements (visible and invisible)
+- `find <app_name> [--role ROLE] [--name NAME]` → Find elements by role and/or name
+- `list-editable <app_name> [--search TEXT]` → List all editable fields, optionally filtering by text
+- `type <app_name> <text>` → Type text into the first available editable field in the application
+- `read <app_name>` → Read text from the first visible text field in the application
+```

@@ -1,0 +1,23 @@
+Filename: /home/hans/dev/GPT/github/utils/hpr/utils/open_router/tests/test_script_01.py
+```
+def main():
+    # Intentional error: calling a non-existent function
+    cupoff("this will cause an error")
+
+if __name__ == "__main__":
+    main()
+```
+
+Filename: /home/hans/dev/GPT/github/utils/hpr/utils/open_router/tests/test_script_02.py
+```
+def calculate():
+    # Another intentional error: undefined variable
+    result = foo + 1
+    return result
+
+if __name__ == "__main__":
+    print(calculate())
+```
+
+
+Please analyze the provided code files.
