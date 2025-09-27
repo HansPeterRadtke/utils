@@ -21,6 +21,10 @@ __all__ = [
   "click_element",
   "list_available_programs",
   "launch_program",
+  "get_possible_actions",
+  "perform_action",
+  "type_into_element",
+  "read_element_text",
   "main"
 ]
 
@@ -240,6 +244,68 @@ def launch_program(exec_cmd):
         return False
 
 
+def get_element(app_name, element_id):
+    elems = get_all_elements(app_name)
+    for e in elems:
+        if e['id'] == element_id:
+            return e
+    return None
+
+
+def get_possible_actions(app_name, element_id):
+    elem = get_element(app_name, element_id)
+    if not elem:
+        return []
+    node = elem['node']
+    try:
+        action_iface = node.queryAction()
+        num_actions = action_iface.nActions
+        actions = [action_iface.getActionDescription(i) for i in range(num_actions)]
+        return actions
+    except Exception:
+        return []
+
+
+def perform_action(app_name, element_id, action_index=0):
+    elem = get_element(app_name, element_id)
+    if not elem:
+        return False
+    node = elem['node']
+    try:
+        action_iface = node.queryAction()
+        if 0 <= action_index < action_iface.nActions:
+            action_iface.doAction(action_index)
+            return True
+        return False
+    except Exception:
+        return False
+
+
+def type_into_element(app_name, element_id, text, position=0):
+    elem = get_element(app_name, element_id)
+    if not elem:
+        return False
+    node = elem['node']
+    try:
+        editable = node.queryEditableText()
+        editable.insertText(position, text, len(text))
+        return True
+    except Exception:
+        return False
+
+
+def read_element_text(app_name, element_id):
+    elem = get_element(app_name, element_id)
+    if not elem:
+        return None
+    node = elem['node']
+    try:
+        text_iface = node.queryText()
+        return text_iface.getText(0, -1)
+    except Exception:
+        return None
+
+
 def main():
     parser = argparse.ArgumentParser(description="UI Interface CLI")
     subparsers = parser.add_subparsers(dest="command")
@@ -282,6 +348,25 @@ def main():
     parser_read = subparsers.add_parser("read")
     parser_read.add_argument("app_name")
 
+    parser_actions_list = subparsers.add_parser("list-actions")
+    parser_actions_list.add_argument("app_name")
+    parser_actions_list.add_argument("element_id")
+
+    parser_perform = subparsers.add_parser("perform-action")
+    parser_perform.add_argument("app_name")
+    parser_perform.add_argument("element_id")
+    parser_perform.add_argument("--index", type=int, default=0)
+
+    parser_type_elem = subparsers.add_parser("type-element")
+    parser_type_elem.add_argument("app_name")
+    parser_type_elem.add_argument("element_id")
+    parser_type_elem.add_argument("text")
+    parser_type_elem.add_argument("--position", type=int, default=0)
+
+    parser_read_elem = subparsers.add_parser("read-element")
+    parser_read_elem.add_argument("app_name")
+    parser_read_elem.add_argument("element_id")
+
     args = parser.parse_args()
 
     if args.command == "list-windows":
@@ -308,3 +393,12 @@ def main():
         print(type_into_document(args.app_name, args.text))
     elif args.command == "read":
         print(read_document_text(args.app_name))
+    elif args.command == "list-actions":
+        print(get_possible_actions(args.app_name, args.element_id))
+    elif args.command == "perform-action":
+        print(perform_action(args.app_name, args.element_id, args.index))
+    elif args.command == "type-element":
+        print(type_into_element(args.app_name, args.element_id, args.text, args.position))
+    elif args.command == "read-element":
+        print(read_element_text(args.app_name, args.element_id))
+
