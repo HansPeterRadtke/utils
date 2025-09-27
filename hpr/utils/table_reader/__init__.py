@@ -27,7 +27,7 @@ def load_data(path):
 
         # Flatten nested dicts into columns
         df = pd.json_normalize(records)
-    
+
     # Try pickled Pandas DataFrame
     elif path.endswith(".pkl"):
         try:
@@ -64,6 +64,9 @@ def main():
     p.add_argument("--unique", help="Show unique values of a column")
     p.add_argument("--describe", action="store_true", help="Show DataFrame describe() summary")
     p.add_argument("--dtypes", action="store_true", help="Show column data types")
+    # NEW: select specific columns
+    p.add_argument("--select", nargs="+", help="Select specific columns to display")
+
     args = p.parse_args()
 
     df = load_data(args.file)
@@ -122,10 +125,17 @@ def main():
         print("[INFO] DataFrame describe():")
         print(df.describe(include="all"))
 
-    # Print final result
+    # NEW: reduce to selected columns
+    if args.select:
+        for col in args.select:
+            if col not in df.columns:
+                sys.exit(f"[ERROR] Column not found in --select: {col}")
+        df = df[args.select]
+
+    # Print final result (full, not shortened)
     if not (args.unique or args.describe or args.list_columns or args.dtypes):
         try:
-            with pd.option_context('display.max_rows', 50, 'display.max_columns', None):
+            with pd.option_context('display.max_rows', None, 'display.max_columns', None, 'display.max_colwidth', None):
                 print(df)
         except Exception as e:
             sys.exit(f"[ERROR] Could not display DataFrame: {e}")
