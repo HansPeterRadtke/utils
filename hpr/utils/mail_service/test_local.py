@@ -9,6 +9,7 @@ import hashlib
 import hmac
 import imaplib
 import json
+import os
 from pathlib import Path
 import secrets
 import smtplib
@@ -18,7 +19,7 @@ import urllib.error
 import urllib.request
 
 ROOT = Path("/data/var/mail")
-CFG = json.loads((ROOT / "config.json").read_text())
+CFG = json.loads((ROOT / "config.json").read_text()) if (ROOT / "config.json").exists() else {}
 ATTACHMENT = bytes(range(256)) * 257
 
 def imap():
@@ -49,6 +50,7 @@ def fetch(path, cookie="", port=8080, data=None):
         result = error
     return result.status, result.headers, result.read()
 
+@unittest.skipUnless(bool(CFG) and (__name__ == "__main__" or os.environ.get("MAIL_SERVICE_INTEGRATION_TESTS") == "1"), "Explicit opt-in and deployed Raspi mail services required")
 class LocalMailTest(unittest.TestCase):
     def test_lmtp_imap_external_attachments(self):
         folder = "Mail-setup-tests"

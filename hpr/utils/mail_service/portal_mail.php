@@ -64,7 +64,7 @@ class portal_mail extends rcube_plugin
     public function user_create($args)
     {
         $args['user_name'] = 'Multiverse';
-        $args['email'] = rcmail::get_instance()->config->get('portal_mail_account');
+        $args['user_email'] = rcmail::get_instance()->config->get('portal_mail_account');
         return $args;
     }
     public function before_send($args)

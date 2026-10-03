@@ -20,14 +20,14 @@ def write(path, content, mode=0o644, uid=0, gid=0):
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(content)
-    path.chmod(mode)
     os.chown(path, uid, gid)
+    path.chmod(mode)
 
 def directory(path, mode=0o700, uid=USER.pw_uid, gid=USER.pw_gid):
     path = Path(path)
     path.mkdir(parents=True, exist_ok=True)
-    path.chmod(mode)
     os.chown(path, uid, gid)
+    path.chmod(mode)
 
 def secret(name, length=48, shared=False):
     path = ROOT / "secrets" / name

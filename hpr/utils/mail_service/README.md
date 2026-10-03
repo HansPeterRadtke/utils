@@ -8,14 +8,22 @@ protect every dynamic webmail request. Guests cannot use this mailbox.
 
 ## Current deployment and activation
 
-Installed on Raspi on 2026-10-03. Local IMAP/LMTP, administrator SSO, compose,
-attachment upload, draft round-trip, reply composition, encrypted Nitro backup,
-and full email/attachment/database restore were verified. The supplied account
-credential was rejected by Google and was removed from the temporary setup file.
-No email has been sent to an external recipient and no Gmail message has been
-deleted.
+Installed and activated on Raspi on 2026-10-03. Google accepted the generated app
+password for certificate-verified IMAP and SMTP. A real self-addressed message was
+sent through Roundcube with a binary attachment, received by Gmail, imported into
+local Dovecot, and verified byte-for-byte. The actual Gmail message, attachment and
+credential were restored from the encrypted Nitro snapshot. The same test message
+was then moved to Gmail Trash and permanently removed with targeted UID EXPUNGE;
+it was confirmed absent from Gmail while remaining readable locally. No unrelated
+Gmail messages were removed. The temporary credential transfer file was deleted.
 
-Gmail authentication remains pending a Google-generated app password. Enable
+Local administrator SSO, guest rejection, compose, attachment upload, draft storage,
+and reply composition also passed. The live tests found and fixed secret-directory
+group inheritance so Roundcube can read newly connected credentials. See
+/data/var/mail/verification/live-test.json and status.json for the host-local test
+record. Password values never enter the source repositories.
+
+For a future credential replacement, use a Google-generated app password. Enable
 Google two-step verification, generate an app password at
 https://myaccount.google.com/apppasswords and enter it at
 https://raspi.jonnyontherun.org/mail-setup/ after the existing admin login.
@@ -26,10 +34,12 @@ does not yet prove end-to-end mail delivery.
 
 **Remote deletion is deliberately disabled, and this version does not implement
 automatic permanent Gmail deletion.** Changing a config flag will not enable it.
-After successful live authentication, complete a self-addressed send/receive test
-with an attachment, verify the imported bytes and an independent restore, then
-implement and test Gmail-specific permanent deletion using only that test message
-first. Ordinary IMAP expunge can archive Gmail messages instead of deleting them.
+The single-message send/receive, restore and targeted permanent-deletion tests now
+pass. A production deletion policy is still not implemented or enabled. First
+resolve independent recovery-key custody (currently blocked by approval review),
+then implement per-message proof of local storage and verified snapshot coverage
+before enabling any scheduled upstream removal. The successful test script is
+intentionally restricted to its own recorded self-addressed verification message. Ordinary IMAP expunge can archive Gmail messages instead of deleting them.
 Do not enable getmail's generic delete switch as a substitute. Any eventual
 deletion must require a verified local copy and successful independent backup.
 
@@ -143,6 +153,8 @@ are removed afterward. Test messages may remain in immutable backup history.
     python3 /data/src/github/utils/hpr/utils/mail_service/test_local.py
     python3 /data/src/github/utils/hpr/utils/mail_service/verify_webmail.py
     python3 /data/src/github/utils/hpr/utils/mail_service/verify_restore.py
+    python3 /data/src/github/utils/hpr/utils/mail_service/verify_live.py verify
+    python3 /data/src/github/utils/hpr/utils/mail_service/verify_live_recovery.py restore
     python3 /data/src/github/utils/hpr/utils/mail_service/mail_service.py receive
     python3 /data/src/github/utils/hpr/utils/mail_service/mail_service.py backup
     systemctl status local-mail-dovecot local-mail-gateway
@@ -159,3 +171,21 @@ References: Google IMAP extensions
 passwords (https://support.google.com/accounts/answer/185833), getmail configuration
 (https://getmail6.org/configuration.html), and the installed Debian Dovecot,
 Roundcube and restic documentation.
+
+### Explicit live-test actions
+
+verify_live.py send sends one real self-addressed message through webmail. It is an
+operator-invoked test, never part of scheduled retrieval. It records the attempt
+before submission and refuses to send again after an ambiguous outcome; inspect
+Gmail and the private result before any retry. verify_live.py verify only retrieves
+and checks the recorded message. The HTTP harness talks directly to the local
+Apache bridge while production browser cookies stay Secure.
+
+verify_live_recovery.py restore proves the recorded Gmail message and attachment
+are recoverable from a fresh Nitro snapshot. delete-test then permits deletion of
+that one test message only after all recorded gates pass, verifies the Gmail
+message identity and attachment again, uses Gmail's stable message identifier,
+MOVE to Trash and UID EXPUNGE, and checks All Mail/Trash/Spam/Inbox/Sent afterward.
+It explicitly refreshes authenticated IMAP capabilities because Google's initial
+pre-authentication capability list omits MOVE and UIDPLUS. It never issues an
+unqualified EXPUNGE and is not a bulk-mail cleanup command.

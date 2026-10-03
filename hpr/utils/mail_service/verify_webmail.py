@@ -13,10 +13,19 @@ class Fields(HTMLParser):
     def __init__(self):
         super().__init__()
         self.values = {}
+        self.select = None
     def handle_starttag(self, tag, attrs):
         a = dict(attrs)
         if tag == "input" and a.get("name"):
             self.values[a["name"]] = a.get("value", "")
+        elif tag == "select":
+            self.select = a.get("name")
+        elif tag == "option" and self.select and "value" in a:
+            if self.select not in self.values or "selected" in a:
+                self.values[self.select] = a["value"]
+    def handle_endtag(self, tag):
+        if tag == "select":
+            self.select = None
 
 def main():
     base = "http://127.0.0.1:8080"
