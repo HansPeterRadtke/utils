@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import json,urllib.parse,urllib.request,urllib.error,sys,time,base64,email,sqlite3,socket,email.message,uuid
+from event_bus import emit as emit_event
 from pathlib import Path
 SECRET=Path('/data/infra/secrets/google.txt');TOKEN=Path('/data/var/google-service/oauth-token.json')
 def config():
@@ -31,6 +32,64 @@ def gmail_profile():
  p=api_json('https://gmail.googleapis.com/gmail/v1/users/me/profile');print('gmail_profile=OK messages='+str(p.get('messagesTotal'))+' threads='+str(p.get('threadsTotal'))+' history='+str(p.get('historyId')));return 0
 def gmail_recent():
  r=api_json('https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=10');print('gmail_recent=OK count='+str(len(r.get('messages',[]))));return 0
+def calendar_sync():
+ db=Path('/data/var/google-service/calendar.sqlite3');con=sqlite3.connect(db);con.execute('create table if not exists calendars(id text primary key, summary text, sync_token text, json text, synced_at integer)');con.execute('create table if not exists events(calendar_id text, id text, json text, primary key(calendar_id,id))')
+ calendars=[];pt=None
+ while True:
+  q={'maxResults':250}
+  if pt:q['pageToken']=pt
+  r=api_json('https://www.googleapis.com/calendar/v3/users/me/calendarList?'+urllib.parse.urlencode(q));calendars+=r.get('items',[]);pt=r.get('nextPageToken')
+  if not pt:break
+ changed=0
+ for cal in calendars:
+  cid=cal['id'];row=con.execute('select sync_token from calendars where id=?',(cid,)).fetchone();token=row[0] if row else None
+  def run(tok):
+   nonlocal changed
+   page=None;final=None
+   while True:
+    q={'showDeleted':'true','maxResults':2500}
+    if tok:q['syncToken']=tok
+    if page:q['pageToken']=page
+    url='https://www.googleapis.com/calendar/v3/calendars/'+urllib.parse.quote(cid,safe='')+'/events?'+urllib.parse.urlencode(q)
+    rr=api_json(url)
+    for ev in rr.get('items',[]):
+     if ev.get('status')=='cancelled':con.execute('delete from events where calendar_id=? and id=?',(cid,ev['id']))
+     else:con.execute('insert or replace into events(calendar_id,id,json) values(?,?,?)',(cid,ev['id'],json.dumps(ev,separators=(',',':'))))
+     changed+=1
+    page=rr.get('nextPageToken');final=rr.get('nextSyncToken') or final
+    if not page:return final
+  try:newtok=run(token)
+  except urllib.error.HTTPError as e:
+   if e.code!=410:raise
+   con.execute('delete from events where calendar_id=?',(cid,));newtok=run(None)
+  con.execute('insert or replace into calendars(id,summary,sync_token,json,synced_at) values(?,?,?,?,?)',(cid,cal.get('summary'),newtok,json.dumps(cal,separators=(',',':')),int(time.time())))
+ con.commit();counts=con.execute('select count(*) from events').fetchone()[0];con.close();db.chmod(0o600);print('calendar_sync=OK calendars='+str(len(calendars))+' events='+str(counts)+' changes='+str(changed));return 0
+
+def drive_sync():
+ db=Path('/data/var/google-service/drive.sqlite3');con=sqlite3.connect(db);con.execute('create table if not exists files(id text primary key,json text)');con.execute('create table if not exists state(key text primary key,value text)');row=con.execute("select value from state where key='page_token'").fetchone();token=row[0] if row else None;changed=0
+ if token is None:
+  pt=None
+  while True:
+   q={'pageSize':1000,'fields':'nextPageToken,files(id,name,mimeType,modifiedTime,parents,trashed,size,md5Checksum,webViewLink)'}
+   if pt:q['pageToken']=pt
+   r=api_json('https://www.googleapis.com/drive/v3/files?'+urllib.parse.urlencode(q))
+   for f in r.get('files',[]):con.execute('insert or replace into files(id,json) values(?,?)',(f['id'],json.dumps(f,separators=(',',':'))));changed+=1
+   pt=r.get('nextPageToken')
+   if not pt:break
+  token=api_json('https://www.googleapis.com/drive/v3/changes/startPageToken')['startPageToken']
+ else:
+  pt=token;newstart=None
+  while True:
+   q={'pageToken':pt,'pageSize':1000,'includeRemoved':'true','fields':'nextPageToken,newStartPageToken,changes(fileId,removed,file(id,name,mimeType,modifiedTime,parents,trashed,size,md5Checksum,webViewLink))'}
+   r=api_json('https://www.googleapis.com/drive/v3/changes?'+urllib.parse.urlencode(q))
+   for ch in r.get('changes',[]):
+    if ch.get('removed'):con.execute('delete from files where id=?',(ch['fileId'],))
+    elif ch.get('file'):con.execute('insert or replace into files(id,json) values(?,?)',(ch['fileId'],json.dumps(ch['file'],separators=(',',':'))))
+    changed+=1
+   if r.get('nextPageToken'):pt=r['nextPageToken'];continue
+   newstart=r.get('newStartPageToken') or pt;token=newstart;break
+ con.execute("insert or replace into state(key,value) values('page_token',?)",(token,));con.commit();count=con.execute('select count(*) from files').fetchone()[0];con.close();db.chmod(0o600);print('drive_sync=OK files='+str(count)+' changes='+str(changed));return 0
+
 def calendar_check():
  r=api_json('https://www.googleapis.com/calendar/v3/users/me/calendarList?maxResults=10');print('calendar_list=OK count='+str(len(r.get('items',[]))));return 0
 def drive_check():
@@ -121,6 +180,12 @@ def gmail_watch():
 def pubsub_pull_once():
  st=json.loads(Path('/data/var/google-service/pubsub.json').read_text());url='https://pubsub.googleapis.com/v1/'+st['subscription']+':pull';r=api_json(url,'POST',{'maxMessages':10,'returnImmediately':False});msgs=r.get('receivedMessages',[])
  if not msgs:print('pubsub_pull=OK messages=0');return 0
+ for x in msgs:
+  m=x.get('message',{});raw=m.get('data','');payload={}
+  if raw:
+   try:payload=json.loads(base64.b64decode(raw+'='*((4-len(raw)%4)%4)).decode())
+   except Exception:payload={'decode_error':True}
+  emit_event('//google/pubsub/'+st['subscription'],'com.google.gmail.change','multiverse3dhpr@gmail.com',payload,event_id='pubsub:'+str(m.get('messageId') or uuid.uuid4()))
  gmail_sync();acks=[x['ackId'] for x in msgs if x.get('ackId')]
  if acks:api_json('https://pubsub.googleapis.com/v1/'+st['subscription']+':acknowledge','POST',{'ackIds':acks})
  print('pubsub_pull=OK messages='+str(len(msgs))+' synced=yes');return 0
@@ -178,6 +243,6 @@ def gmail_sync():
 
 if __name__=='__main__':
  if len(sys.argv)==2:
-  actions={'token-info':token_info,'check':check,'gmail-profile':gmail_profile,'gmail-recent':gmail_recent,'calendar-check':calendar_check,'drive-check':drive_check,'youtube-check':youtube_check,'pubsub-probe':pubsub_probe,'pubsub-setup':pubsub_setup,'gmail-watch':gmail_watch,'pubsub-pull-once':pubsub_pull_once,'pubsub-listen':pubsub_listen,'gmail-send-self-test':gmail_send_self_test,'gmail-raw-dryrun':gmail_raw_dryrun,'gmail-sync-bootstrap':gmail_sync_bootstrap,'gmail-sync':gmail_sync}
+  actions={'token-info':token_info,'check':check,'gmail-profile':gmail_profile,'gmail-recent':gmail_recent,'calendar-check':calendar_check,'calendar-sync':calendar_sync,'drive-check':drive_check,'drive-sync':drive_sync,'youtube-check':youtube_check,'pubsub-probe':pubsub_probe,'pubsub-setup':pubsub_setup,'gmail-watch':gmail_watch,'pubsub-pull-once':pubsub_pull_once,'pubsub-listen':pubsub_listen,'gmail-send-self-test':gmail_send_self_test,'gmail-raw-dryrun':gmail_raw_dryrun,'gmail-sync-bootstrap':gmail_sync_bootstrap,'gmail-sync':gmail_sync}
   if sys.argv[1] in actions: raise SystemExit(actions[sys.argv[1]]())
- raise SystemExit('usage: google_service.py check|gmail-profile|gmail-recent|calendar-check|drive-check|youtube-check|pubsub-probe|pubsub-setup|gmail-watch|pubsub-pull-once|pubsub-listen|gmail-send-self-test|gmail-raw-dryrun|gmail-sync-bootstrap|gmail-sync')
+ raise SystemExit('usage: google_service.py check|gmail-profile|gmail-recent|calendar-check|calendar-sync|drive-check|drive-sync|youtube-check|pubsub-probe|pubsub-setup|gmail-watch|pubsub-pull-once|pubsub-listen|gmail-send-self-test|gmail-raw-dryrun|gmail-sync-bootstrap|gmail-sync')
