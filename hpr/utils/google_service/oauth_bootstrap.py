@@ -14,6 +14,15 @@ def start():
  STATE.write_text(json.dumps({'verifier':verifier,'state':state})+'\n');os.chmod(STATE,0o600)
  q={'client_id':c['clientid'],'redirect_uri':'http://localhost','response_type':'code','scope':' '.join(SCOPES),'access_type':'offline','prompt':'consent','include_granted_scopes':'true','state':state,'code_challenge':challenge,'code_challenge_method':'S256'}
  print('https://accounts.google.com/o/oauth2/v2/auth?'+urllib.parse.urlencode(q))
+
+def cleanup_callback():
+ text=SECRET.read_text();lines=[];removed=0
+ for line in text.splitlines():
+  if ('http://localhost' in line or 'https://localhost' in line) and 'code=' in line:
+   removed+=1;continue
+  lines.append(line)
+ SECRET.write_text('\n'.join(lines).rstrip()+'\n');os.chmod(SECRET,0o600);print('oauth_callback_cleanup=OK removed='+str(removed));return 0
+
 def finish(url=None):
  c=cfg()
  if url is None:
@@ -48,4 +57,5 @@ def finish(url=None):
 if __name__=='__main__':
  if len(sys.argv)==1 or sys.argv[1]=='start': start()
  elif sys.argv[1]=='finish': finish(sys.argv[2] if len(sys.argv)==3 else None)
- else: raise SystemExit('usage: oauth_bootstrap.py start | finish [CALLBACK_URL]')
+ elif sys.argv[1]=='cleanup-callback': cleanup_callback()
+ else: raise SystemExit('usage: oauth_bootstrap.py start | finish [CALLBACK_URL] | cleanup-callback')
