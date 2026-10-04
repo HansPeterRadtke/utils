@@ -3,16 +3,18 @@ import base64,hashlib,json,os,secrets,sys,urllib.parse,urllib.request,urllib.err
 from pathlib import Path
 SECRET=Path('/data/infra/secrets/google.txt'); STATE=Path('/data/var/google-service/oauth-state.json'); MAIL_PENDING=Path('/data/var/mail/secrets/oauth-pending.json'); TOKEN=Path('/data/var/google-service/oauth-token.json')
 SCOPES=['https://www.googleapis.com/auth/gmail.modify','https://www.googleapis.com/auth/gmail.send','https://www.googleapis.com/auth/calendar','https://www.googleapis.com/auth/drive','https://www.googleapis.com/auth/youtube.upload','https://www.googleapis.com/auth/youtube']
+CLOUD_SCOPE='https://www.googleapis.com/auth/cloud-platform'
 def cfg():
  d={}
  for line in SECRET.read_text().splitlines():
   if ':' in line:
    k,v=line.split(':',1);d[k.strip()]=v.strip()
  return d
-def start():
+def start(scopes=None):
+ scopes=scopes or SCOPES
  c=cfg(); verifier=secrets.token_urlsafe(64); challenge=base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest()).rstrip(b'=').decode(); state=secrets.token_urlsafe(32)
  STATE.write_text(json.dumps({'verifier':verifier,'state':state})+'\n');os.chmod(STATE,0o600)
- q={'client_id':c['clientid'],'redirect_uri':'http://localhost','response_type':'code','scope':' '.join(SCOPES),'access_type':'offline','prompt':'consent','include_granted_scopes':'true','state':state,'code_challenge':challenge,'code_challenge_method':'S256'}
+ q={'client_id':c['clientid'],'redirect_uri':'http://localhost','response_type':'code','scope':' '.join(scopes),'access_type':'offline','prompt':'consent','include_granted_scopes':'true','state':state,'code_challenge':challenge,'code_challenge_method':'S256'}
  print('https://accounts.google.com/o/oauth2/v2/auth?'+urllib.parse.urlencode(q))
 
 def cleanup_callback():
@@ -56,6 +58,7 @@ def finish(url=None):
  print('refresh_token_present',bool(tok.get('refresh_token')));print('scope_count',len(tok.get('scope','').split()))
 if __name__=='__main__':
  if len(sys.argv)==1 or sys.argv[1]=='start': start()
+ elif sys.argv[1]=='start-cloud': start(SCOPES+[CLOUD_SCOPE])
  elif sys.argv[1]=='finish': finish(sys.argv[2] if len(sys.argv)==3 else None)
  elif sys.argv[1]=='cleanup-callback': cleanup_callback()
- else: raise SystemExit('usage: oauth_bootstrap.py start | finish [CALLBACK_URL] | cleanup-callback')
+ else: raise SystemExit('usage: oauth_bootstrap.py start | start-cloud | finish [CALLBACK_URL] | cleanup-callback')
