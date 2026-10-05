@@ -3,10 +3,10 @@
 $mail = json_decode(file_get_contents('/data/var/mail/config.json'), true, 512, JSON_THROW_ON_ERROR);
 $config['db_dsnw'] = 'sqlite:////data/var/mail/roundcube/roundcube.db?mode=0640';
 $config['imap_host'] = '127.0.0.1:' . $mail['imap_port'];
-$config['smtp_host'] = 'ssl://smtp.gmail.com:465';
-$config['smtp_user'] = $mail['account'];
-$config['smtp_pass'] = is_readable('/data/var/mail/secrets/gmail-app-password') ? trim(file_get_contents('/data/var/mail/secrets/gmail-app-password')) : '';
-$config['smtp_conn_options'] = ['ssl' => ['verify_peer' => true, 'verify_peer_name' => true]];
+$config['smtp_host'] = '127.0.0.1:16202';
+$config['smtp_user'] = '';
+$config['smtp_pass'] = '';
+$config['smtp_conn_options'] = [];
 $config['des_key'] = trim(file_get_contents('/data/var/mail/secrets/roundcube-key'));
 $config['plugins'] = ['portal_mail'];
 $config['portal_mail_auth_url'] = 'http://127.0.0.1:' . $mail['gateway_port'] . '/auth';

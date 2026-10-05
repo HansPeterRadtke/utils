@@ -17,15 +17,19 @@ def install_cron():
  lines.append('@reboot /usr/bin/flock -n /data/var/google-service/pubsub-listen.lock /usr/bin/python3 /data/src/github/utils/hpr/utils/google_service/google_service.py pubsub-listen >>/data/var/google-service/pubsub-listen.log 2>&1 # multiverse-google-pubsub-listen')
  q=subprocess.run(['crontab','-'],input='\n'.join(lines)+'\n',text=True);return q.returncode==0
 def main():
- status('WAITING_FOR_CALLBACK')
- deadline=time.time()+3600
- while time.time()<deadline:
-  p=run(OAUTH+['finish'],60)
-  if p.returncode==0:break
-  if 'No callback URL' not in (p.stdout+p.stderr) and 'OAuth state mismatch' not in (p.stdout+p.stderr):status('OAUTH_FAILED',detail=(p.stdout+p.stderr)[-400:]);return 2
-  time.sleep(2)
- else:status('TIMED_OUT_WAITING_FOR_CALLBACK');return 3
- run(OAUTH+['cleanup-callback'],30)
+ resume='--resume' in __import__('sys').argv
+ if not resume:
+  status('WAITING_FOR_CALLBACK')
+  deadline=time.time()+3600
+  while time.time()<deadline:
+   p=run(OAUTH+['finish'],60)
+   if p.returncode==0:break
+   if 'No callback URL' not in (p.stdout+p.stderr) and 'OAuth state mismatch' not in (p.stdout+p.stderr):status('OAUTH_FAILED',detail=(p.stdout+p.stderr)[-400:]);return 2
+   time.sleep(2)
+  else:status('TIMED_OUT_WAITING_FOR_CALLBACK');return 3
+  run(OAUTH+['cleanup-callback'],30)
+ else:
+  status('RESUMING_AFTER_OAUTH')
  p=run(BASE+['pubsub-setup'],180)
  if p.returncode:status('PUBSUB_SETUP_FAILED',detail=(p.stdout+p.stderr)[-500:]);return 4
  p=run(BASE+['gmail-watch'],60)

@@ -172,24 +172,12 @@ def receive():
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError:
             return
-        if not (ROOT / "secrets/gmail-app-password").exists():
-            status_update(connected=False, receive_error="Google app password required.")
-            return
-        jobs = sorted((ROOT / "getmail").glob("*/getmailrc"))
-        if len(jobs) != 6:
-            raise RuntimeError("Gmail folder configuration is incomplete")
-        failed = []
-        for job in jobs:
-            proc = subprocess.run(["getmail", "--quiet", "--getmaildir", str(job.parent)],
-                                  capture_output=True, text=True, timeout=1200)
-            if proc.returncode:
-                failed.append(job.parent.name)
-        # Retain successful deliveries even if another folder failed.
-        backup()
-        if failed:
-            status_update(receive_error="Retrieval failed for: " + ", ".join(failed))
-            raise RuntimeError("Gmail retrieval failed; no server mail has been deleted")
-        status_update(receive_error=None, received_at=int(time.time()), connected=True)
+        proc = subprocess.run(["/usr/bin/python3", "/data/src/github/utils/hpr/utils/google_service/google_service.py", "gmail-sync"], capture_output=True, text=True, timeout=900)
+        if proc.returncode:
+            status_update(connected=False, receive_error="OAuth Gmail API synchronization failed.")
+            raise RuntimeError("OAuth Gmail synchronization failed")
+        status_update(receive_error=None, received_at=int(time.time()), connected=True, account_message="Google OAuth connected; Gmail API synchronization active.")
+
 
 def portal_session(cookie):
     cfg = settings()
@@ -225,13 +213,12 @@ class Gateway(http.server.BaseHTTPRequestHandler):
             state = {}
         connected = bool(state.get("connected"))
         connection = "Gmail connected" if connected else "Connect Gmail"
-        notice = message or state.get("account_message") or "Enter a Google app password to connect sending and receiving."
+        notice = message or state.get("account_message") or "Google OAuth is managed by the local Google service."
         body = f"""<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Multiverse Mail</title>
 <style>body{{font:18px system-ui;background:#101723;color:#eef2f6;max-width:42rem;margin:6vh auto;padding:1.5rem}}a{{color:#8fd4ff}}input,button{{font:inherit;padding:.7rem;border-radius:.4rem}}input{{width:90%;margin:.5rem 0 1rem}}button{{background:#a3dfb8;border:0;cursor:pointer}}.note{{padding:1rem;background:#203047;border-radius:.5rem}}small{{color:#b8c3d2}}</style>
 <a href="/">Raspi</a><h1>Multiverse Mail</h1><p>{html.escape(cfg['account'])}</p>
 <p><a href="/mail/">Open mailbox</a></p><h2>{connection}</h2><p class="note">{html.escape(notice)}</p>
-<p>Create an app password in <a href="https://myaccount.google.com/apppasswords" rel="noreferrer" target="_blank">your Google account</a>. Google requires two-step verification first.</p>
-<form method="post" action="/mail-setup/"><input type="hidden" name="csrf" value="{html.escape(session['csrf'], quote=True)}"><label for="password">Google app password</label><input id="password" type="password" name="password" autocomplete="new-password" required maxlength="40"><button>Connect Gmail</button></form>
+<p>Google access is authenticated through OAuth by the local Google service. No Google password or app password is required here.</p>
 <p><small>Mail is stored on Raspi, with encrypted backups on Nitro. Gmail server deletion remains off until the live download, backup, restore, and deletion tests pass.</small></p></html>"""
         self.respond(200, body)
 
@@ -243,7 +230,7 @@ class Gateway(http.server.BaseHTTPRequestHandler):
                 state = json.loads((ROOT / "status.json").read_text())
             except (OSError, ValueError):
                 state = {}
-            detail = state.get("receive_error") or ("Gmail connected" if state.get("connected") else "Google app password required")
+            detail = state.get("receive_error") or ("Google OAuth connected" if Path("/data/var/google-service/oauth-token.json").exists() else "Google OAuth not connected")
             self.respond(200, json.dumps({"ok": True, "state": detail, "remote_deletion": False}), "application/json")
             return
         session = portal_session(self.headers.get("Cookie", ""))
@@ -261,35 +248,8 @@ class Gateway(http.server.BaseHTTPRequestHandler):
         if urllib.parse.urlsplit(self.path).path != "/mail-setup/":
             self.respond(404)
             return
-        session = portal_session(self.headers.get("Cookie", ""))
-        if not session:
-            self.respond(403, "Administrator login required.")
-            return
-        origin = self.headers.get("Origin")
-        if origin and origin != settings()["public_origin"]:
-            self.respond(403, "Invalid request origin.")
-            return
-        try:
-            size = int(self.headers.get("Content-Length", "0"))
-        except ValueError:
-            size = 0
-        if not 0 < size <= 4096:
-            self.respond(400, "Invalid request.")
-            return
-        form = urllib.parse.parse_qs(self.rfile.read(size).decode("utf-8", errors="strict"))
-        if not hmac.compare_digest(form.get("csrf", [""])[0], session["csrf"]):
-            self.respond(403, "Refresh the page and try again.")
-            return
-        try:
-            connect_account(form.get("password", [""])[0])
-        except ValueError as error:
-            self.page(session, str(error))
-        except (imaplib.IMAP4.error, smtplib.SMTPException):
-            self.page(session, "Google rejected the connection. Check that this is the generated app password for this Gmail account.")
-        except Exception:
-            self.page(session, "The connection could not be completed. No server mail has been deleted.")
-        else:
-            self.respond(303, location="/mail-setup/")
+        self.respond(410, "Google OAuth is managed by the local Google service. No app password setup is available.", "text/plain; charset=utf-8")
+
 
 def main():
     parser = argparse.ArgumentParser()

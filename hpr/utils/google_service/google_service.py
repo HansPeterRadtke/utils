@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-import json,urllib.parse,urllib.request,urllib.error,sys,time,base64,email,sqlite3,socket,email.message,uuid
+import json,urllib.parse,urllib.request,urllib.error,sys,time,base64,email,sqlite3,socket,email.message,uuid,secrets,datetime
 from event_bus import emit as emit_event
 from pathlib import Path
-SECRET=Path('/data/infra/secrets/google.txt');TOKEN=Path('/data/var/google-service/oauth-token.json')
+SECRET=Path('/data/infra/secrets/google.txt');TOKEN=Path('/data/var/google-service/oauth-token.json');PROJECT_NUMBER='809990734271'
 def config():
  d={}
  for line in SECRET.read_text().splitlines():
@@ -90,6 +90,79 @@ def drive_sync():
    newstart=r.get('newStartPageToken') or pt;token=newstart;break
  con.execute("insert or replace into state(key,value) values('page_token',?)",(token,));con.commit();count=con.execute('select count(*) from files').fetchone()[0];con.close();db.chmod(0o600);print('drive_sync=OK files='+str(count)+' changes='+str(changed));return 0
 
+def _write_private(path,obj):
+ path=Path(path);path.parent.mkdir(parents=True,exist_ok=True);path.write_text(json.dumps(obj,indent=2)+'\n');path.chmod(0o600)
+def _read_json(path,default):
+ p=Path(path)
+ try:return json.loads(p.read_text())
+ except Exception:return default
+
+def _stop_channel(url,ch):
+ if not ch or not ch.get('id') or not ch.get('resourceId'):return
+ try:api_json(url,'POST',{'id':ch['id'],'resourceId':ch['resourceId']})
+ except urllib.error.HTTPError as e:
+  if e.code not in (404,410):raise
+
+def calendar_watch():
+ path=Path('/data/var/google-service/calendar-watch.json');old=_read_json(path,{'channels':[]}).get('channels',[])
+ calendars=[];pt=None
+ while True:
+  q={'maxResults':250}
+  if pt:q['pageToken']=pt
+  r=api_json('https://www.googleapis.com/calendar/v3/users/me/calendarList?'+urllib.parse.urlencode(q));calendars+=r.get('items',[]);pt=r.get('nextPageToken')
+  if not pt:break
+ new=[]
+ for cal in calendars:
+  cid=cal['id'];ch={'id':str(uuid.uuid4()),'token':secrets.token_urlsafe(32),'calendar_id':cid,'pending':True};new.append(ch);_write_private(path,{'channels':new})
+  exp=str(int((time.time()+6*86400)*1000));url='https://www.googleapis.com/calendar/v3/calendars/'+urllib.parse.quote(cid,safe='')+'/events/watch'
+  r=api_json(url,'POST',{'id':ch['id'],'type':'web_hook','address':'https://raspi.jonnyontherun.org/hooks/google/calendar','token':ch['token'],'expiration':exp})
+  ch.update({'resourceId':r.get('resourceId'),'resourceUri':r.get('resourceUri'),'expiration':r.get('expiration'),'pending':False});_write_private(path,{'channels':new})
+ for ch in old:_stop_channel('https://www.googleapis.com/calendar/v3/channels/stop',ch)
+ print('calendar_watch=OK channels='+str(len(new)));return 0
+
+def drive_watch():
+ db=Path('/data/var/google-service/drive.sqlite3')
+ if not db.exists():drive_sync()
+ con=sqlite3.connect(db);row=con.execute("select value from state where key='page_token'").fetchone();con.close();page=row[0] if row else None
+ if not page:drive_sync();con=sqlite3.connect(db);row=con.execute("select value from state where key='page_token'").fetchone();con.close();page=row[0] if row else None
+ if not page:raise RuntimeError('Drive page token unavailable')
+ path=Path('/data/var/google-service/drive-watch.json');old=_read_json(path,{}).get('channel');ch={'id':str(uuid.uuid4()),'token':secrets.token_urlsafe(32),'pending':True};_write_private(path,{'channel':ch})
+ exp=str(int((time.time()+6*86400)*1000));url='https://www.googleapis.com/drive/v3/changes/watch?'+urllib.parse.urlencode({'pageToken':page})
+ r=api_json(url,'POST',{'id':ch['id'],'type':'web_hook','address':'https://raspi.jonnyontherun.org/hooks/google/drive','token':ch['token'],'expiration':exp})
+ ch.update({'resourceId':r.get('resourceId'),'resourceUri':r.get('resourceUri'),'expiration':r.get('expiration'),'pending':False,'pageToken':page});_write_private(path,{'channel':ch})
+ _stop_channel('https://www.googleapis.com/drive/v3/channels/stop',old)
+ print('drive_watch=OK expiration_present='+str(bool(ch.get('expiration'))));return 0
+
+def _event_count(type_):
+ p=Path('/data/var/google-service/events.sqlite3')
+ if not p.exists():return 0
+ con=sqlite3.connect(p);n=con.execute('select count(*) from events where type=?',(type_,)).fetchone()[0];con.close();return n
+def _wait_event(type_,before,timeout=30):
+ end=time.time()+timeout
+ while time.time()<end:
+  n=_event_count(type_)
+  if n>before:return n
+  time.sleep(1)
+ return _event_count(type_)
+def _wait_sql(db,sql,args,want,timeout=30):
+ end=time.time()+timeout
+ while time.time()<end:
+  con=sqlite3.connect(db);row=con.execute(sql,args).fetchone();con.close();v=bool(row)
+  if v==want:return True
+  time.sleep(1)
+ return False
+
+def calendar_push_self_test():
+ typ='com.google.calendar.change';before=_event_count(typ);d=datetime.date.today()+datetime.timedelta(days=30);payload={'summary':'Multiverse Services push self-test','description':'Temporary automated verification event; deleted automatically.','start':{'date':d.isoformat()},'end':{'date':(d+datetime.timedelta(days=1)).isoformat()}}
+ ev=api_json('https://www.googleapis.com/calendar/v3/calendars/primary/events','POST',payload);eid=ev['id'];n=_wait_event(typ,before);created=n>before;local=_wait_sql('/data/var/google-service/calendar.sqlite3','select 1 from events where id=?',(eid,),True)
+ api_json('https://www.googleapis.com/calendar/v3/calendars/primary/events/'+urllib.parse.quote(eid,safe=''),'DELETE');n2=_wait_event(typ,n);deleted_event=n2>n;removed=_wait_sql('/data/var/google-service/calendar.sqlite3','select 1 from events where id=?',(eid,),False)
+ print('calendar_push_self_test=OK create_push='+str(created)+' local_create='+str(local)+' delete_push='+str(deleted_event)+' local_delete='+str(removed));return 0 if all((created,local,deleted_event,removed)) else 1
+
+def drive_push_self_test():
+ typ='com.google.drive.change';before=_event_count(typ);f=api_json('https://www.googleapis.com/drive/v3/files?fields=id,name','POST',{'name':'Multiverse Services push self-test.txt','mimeType':'text/plain'});fid=f['id'];n=_wait_event(typ,before);created=n>before;local=_wait_sql('/data/var/google-service/drive.sqlite3','select 1 from files where id=?',(fid,),True)
+ api_json('https://www.googleapis.com/drive/v3/files/'+urllib.parse.quote(fid,safe=''),'DELETE');n2=_wait_event(typ,n);deleted_event=n2>n;removed=_wait_sql('/data/var/google-service/drive.sqlite3','select 1 from files where id=?',(fid,),False)
+ print('drive_push_self_test=OK create_push='+str(created)+' local_create='+str(local)+' delete_push='+str(deleted_event)+' local_delete='+str(removed));return 0 if all((created,local,deleted_event,removed)) else 1
+
 def calendar_check():
  r=api_json('https://www.googleapis.com/calendar/v3/users/me/calendarList?maxResults=10');print('calendar_list=OK count='+str(len(r.get('items',[]))));return 0
 def drive_check():
@@ -100,6 +173,23 @@ def youtube_check():
 
 
 
+
+def cloud_probe():
+ urls=[('resource-manager','https://cloudresourcemanager.googleapis.com/v3/projects/809990734271'),('service-usage','https://serviceusage.googleapis.com/v1/projects/809990734271/services/pubsub.googleapis.com'),('pubsub','https://pubsub.googleapis.com/v1/projects/809990734271/topics?pageSize=1')]
+ for name,url in urls:
+  try:
+   status,body=call(url);print(name,'OK',status,'bytes',len(body))
+  except urllib.error.HTTPError as e:
+   raw=e.read().decode(errors='ignore')
+   try:
+    err=json.loads(raw).get('error',{});details=err.get('details') or [];reason='';service=''
+    for d in details:
+     reason=reason or d.get('reason','')
+     meta=d.get('metadata') or {};service=service or meta.get('service','')
+    print(name,'HTTP',e.code,'status',err.get('status'),'reason',reason,'service',service,'message',str(err.get('message',''))[:180].replace('\n',' '))
+   except Exception:print(name,'HTTP',e.code)
+ return 0
+
 def pubsub_probe():
  try:
   status,body=call('https://pubsub.googleapis.com/v1/projects/809990734271/topics?pageSize=1');print('pubsub_probe=OK status='+str(status)+' bytes='+str(len(body)));return 0
@@ -109,9 +199,12 @@ def pubsub_probe():
   except Exception: print('pubsub_probe=HTTP'+str(e.code))
   return 1
 
+def gmail_send_raw(raw):
+ enc=base64.urlsafe_b64encode(raw).rstrip(b'=').decode();return api_json('https://gmail.googleapis.com/gmail/v1/users/me/messages/send','POST',{'raw':enc})
+
 def gmail_send_self_test():
  msg=email.message.EmailMessage();msg['From']='multiverse3dhpr@gmail.com';msg['To']='multiverse3dhpr@gmail.com';msg['Subject']='OAuth API self-test '+str(uuid.uuid4())[:8];msg.set_content('Multiverse Services Gmail OAuth send verification.')
- raw=base64.urlsafe_b64encode(msg.as_bytes()).rstrip(b'=').decode();r=api_json('https://gmail.googleapis.com/gmail/v1/users/me/messages/send','POST',{'raw':raw});print('gmail_send_self_test=OK id_present='+str(bool(r.get('id'))));return 0
+ r=gmail_send_raw(msg.as_bytes());print('gmail_send_self_test=OK id_present='+str(bool(r.get('id'))));return 0
 
 def gmail_raw_dryrun():
  r=api_json('https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=100')
@@ -147,12 +240,20 @@ def google_project():
  return pid,num
 
 def service_enable(name):
- _,num=google_project();url='https://serviceusage.googleapis.com/v1/projects/'+num+'/services/'+name+':enable'
- op=api_json(url,'POST',{})
+ num=PROJECT_NUMBER;root='https://serviceusage.googleapis.com/v1/projects/'+num+'/services/'+name
+ cur=api_json(root)
+ if cur.get('state')=='ENABLED':return
+ op=api_json(root+':enable','POST',{})
  opn=op.get('name')
  if not opn:return
  for _ in range(60):
-  time.sleep(1);x=api_json('https://serviceusage.googleapis.com/v1/'+opn)
+  time.sleep(1)
+  try:x=api_json('https://serviceusage.googleapis.com/v1/'+opn)
+  except urllib.error.HTTPError as e:
+   if e.code==400:
+    cur=api_json(root)
+    if cur.get('state')=='ENABLED':return
+   raise
   if x.get('done'):
    if x.get('error'):raise RuntimeError('service enable failed: '+str(x['error'].get('message','')))
    return
@@ -166,7 +267,7 @@ def pubsub_setup():
    if e.code==409:return {}
    raise
  put('https://pubsub.googleapis.com/v1/'+topic,{})
- policy=api_json('https://pubsub.googleapis.com/v1/'+topic+':getIamPolicy','POST',{})
+ policy=api_json('https://pubsub.googleapis.com/v1/'+topic+':getIamPolicy')
  member='serviceAccount:gmail-api-push@system.gserviceaccount.com';binding=next((b for b in policy.get('bindings',[]) if b.get('role')=='roles/pubsub.publisher'),None)
  if binding is None:binding={'role':'roles/pubsub.publisher','members':[]};policy.setdefault('bindings',[]).append(binding)
  if member not in binding['members']:binding['members'].append(member);api_json('https://pubsub.googleapis.com/v1/'+topic+':setIamPolicy','POST',{'policy':policy})
@@ -243,6 +344,6 @@ def gmail_sync():
 
 if __name__=='__main__':
  if len(sys.argv)==2:
-  actions={'token-info':token_info,'check':check,'gmail-profile':gmail_profile,'gmail-recent':gmail_recent,'calendar-check':calendar_check,'calendar-sync':calendar_sync,'drive-check':drive_check,'drive-sync':drive_sync,'youtube-check':youtube_check,'pubsub-probe':pubsub_probe,'pubsub-setup':pubsub_setup,'gmail-watch':gmail_watch,'pubsub-pull-once':pubsub_pull_once,'pubsub-listen':pubsub_listen,'gmail-send-self-test':gmail_send_self_test,'gmail-raw-dryrun':gmail_raw_dryrun,'gmail-sync-bootstrap':gmail_sync_bootstrap,'gmail-sync':gmail_sync}
+  actions={'token-info':token_info,'check':check,'gmail-profile':gmail_profile,'gmail-recent':gmail_recent,'calendar-push-self-test':calendar_push_self_test,'calendar-check':calendar_check,'calendar-sync':calendar_sync,'calendar-watch':calendar_watch,'drive-push-self-test':drive_push_self_test,'drive-check':drive_check,'drive-sync':drive_sync,'drive-watch':drive_watch,'youtube-check':youtube_check,'cloud-probe':cloud_probe,'pubsub-probe':pubsub_probe,'pubsub-setup':pubsub_setup,'gmail-watch':gmail_watch,'pubsub-pull-once':pubsub_pull_once,'pubsub-listen':pubsub_listen,'gmail-send-self-test':gmail_send_self_test,'gmail-raw-dryrun':gmail_raw_dryrun,'gmail-sync-bootstrap':gmail_sync_bootstrap,'gmail-sync':gmail_sync}
   if sys.argv[1] in actions: raise SystemExit(actions[sys.argv[1]]())
- raise SystemExit('usage: google_service.py check|gmail-profile|gmail-recent|calendar-check|calendar-sync|drive-check|drive-sync|youtube-check|pubsub-probe|pubsub-setup|gmail-watch|pubsub-pull-once|pubsub-listen|gmail-send-self-test|gmail-raw-dryrun|gmail-sync-bootstrap|gmail-sync')
+ raise SystemExit('usage: google_service.py check|gmail-profile|gmail-recent|calendar-push-self-test|calendar-check|calendar-sync|calendar-watch|drive-push-self-test|drive-check|drive-sync|drive-watch|youtube-check|cloud-probe|pubsub-probe|pubsub-setup|gmail-watch|pubsub-pull-once|pubsub-listen|gmail-send-self-test|gmail-raw-dryrun|gmail-sync-bootstrap|gmail-sync')

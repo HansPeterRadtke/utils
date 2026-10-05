@@ -69,10 +69,10 @@ class portal_mail extends rcube_plugin
     }
     public function before_send($args)
     {
-        $file = '/data/var/mail/secrets/gmail-app-password';
+        $file = '/data/var/google-service/oauth-token.json';
         if (!is_readable($file)) {
             $args['abort'] = true;
-            $args['error'] = 'Connect Gmail at /mail-setup/ first.';
+            $args['error'] = 'Google OAuth is not connected.';
         }
         return $args;
     }
