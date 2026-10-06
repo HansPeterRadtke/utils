@@ -6,6 +6,8 @@ The deployed OAuth app is in Google Production. The current refresh token has al
 
 ## Use this first
 
+For the short operator version, read [`QUICKSTART.md`](QUICKSTART.md).
+
 `googlectl` is installed at `/data/dev/bin/googlectl` and points to the repo-backed command in this directory.
 
 ```sh
@@ -19,7 +21,7 @@ googlectl logs pubsub 100
 
 `googlectl status` is non-mutating and is the normal health check. It verifies OAuth refresh, all Google APIs, Pub/Sub resources/IAM, watch expiration, local ports, public webhook behavior, scheduler entries, SQLite integrity, Dovecot access, and recent encrypted backup state.
 
-`googlectl test full` performs real integration tests that clean up their temporary cloud objects: Calendar create/push/mirror/delete, Drive create/push/mirror/delete, a private YouTube upload/verify/delete, local mail regressions, Roundcube compose/draft/reply, and encrypted backup/restore. It deliberately does not send a real email because that would leave a message behind.
+`googlectl test all` runs the complete validation including real mail, Nitro recovery, and automatic supervisor recovery. `googlectl test full` performs real integration tests that clean up their temporary cloud objects: Calendar create/push/mirror/delete, Drive create/push/mirror/delete, a private YouTube upload/verify/delete, local mail regressions, Roundcube compose/draft/reply, and encrypted backup/restore. It deliberately does not send a real email because that would leave a message behind.
 
 To test real mail sending through Roundcube:
 
@@ -131,13 +133,13 @@ googlectl youtube privacy VIDEO_ID unlisted
 googlectl youtube delete VIDEO_ID
 ```
 
-A clean private upload/delete test is available:
+A clean upload/visibility/delete test is available:
 
 ```sh
 googlectl youtube self-test
 ```
 
-The self-test removes its own temporary video. YouTube upload tests consume API quota, so do not run them continuously.
+The self-test uploads privately, verifies `private -> unlisted -> private` visibility changes, then deletes the temporary video and verifies deletion. YouTube upload tests consume API quota, so do not run them continuously.
 
 ## Architecture
 
@@ -260,6 +262,8 @@ After a complete Raspi rebuild, restore the encrypted runtime, deploy the infra 
 ## Security and deliberate limitations
 
 The Google password is not used by runtime services. There is no app password. OAuth tokens are not passed on command lines and are never printed by health tools.
+
+Runtime state is created under a private umask. `/data/var/google-service` and credential/watch/database/log files are restricted to the service user; `googlectl status` checks this and fails on group/world-readable sensitive state.
 
 Calendar/Drive webhook tokens are private runtime state. Forged notifications are rejected. Gmail Pub/Sub is authenticated by Google IAM rather than a public webhook.
 

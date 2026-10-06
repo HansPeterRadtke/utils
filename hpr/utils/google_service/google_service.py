@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
-import json,urllib.parse,urllib.request,urllib.error,sys,time,base64,email,sqlite3,socket,email.message,uuid,secrets,datetime
+import json,urllib.parse,urllib.request,urllib.error,sys,time,base64,email,sqlite3,socket,email.message,uuid,secrets,datetime,os
 from event_bus import emit as emit_event
 from pathlib import Path
+os.umask(0o077)
 SECRET=Path('/data/infra/secrets/google.txt');TOKEN=Path('/data/var/google-service/oauth-token.json');PROJECT_NUMBER='809990734271'
 def config():
  d={}
@@ -278,9 +279,11 @@ def pubsub_setup():
 def gmail_watch():
  st=json.loads(Path('/data/var/google-service/pubsub.json').read_text());r=api_json('https://gmail.googleapis.com/gmail/v1/users/me/watch','POST',{'topicName':st['topic'],'labelIds':['INBOX'],'labelFilterBehavior':'INCLUDE'});st['historyId']=r.get('historyId');st['watch_expiration']=r.get('expiration');st['watch_updated']=int(time.time());p=Path('/data/var/google-service/pubsub.json');p.write_text(json.dumps(st,indent=2)+'\n');p.chmod(0o600);print('gmail_watch=OK history_present='+str(bool(st['historyId']))+' expiration_present='+str(bool(st['watch_expiration'])));return 0
 
-def pubsub_pull_once():
+def pubsub_pull_once(quiet=False):
  st=json.loads(Path('/data/var/google-service/pubsub.json').read_text());url='https://pubsub.googleapis.com/v1/'+st['subscription']+':pull';r=api_json(url,'POST',{'maxMessages':10,'returnImmediately':False});msgs=r.get('receivedMessages',[])
- if not msgs:print('pubsub_pull=OK messages=0');return 0
+ if not msgs:
+  if not quiet:print('pubsub_pull=OK messages=0')
+  return 0
  for x in msgs:
   m=x.get('message',{});raw=m.get('data','');payload={}
   if raw:
@@ -294,7 +297,7 @@ def pubsub_pull_once():
 def pubsub_listen():
  print('pubsub_listen=START',flush=True)
  while True:
-  try:pubsub_pull_once()
+  try:pubsub_pull_once(quiet=True)
   except Exception as e:print('pubsub_listen_error='+type(e).__name__,flush=True);time.sleep(5)
 
 def gmail_sync_bootstrap():
@@ -340,7 +343,7 @@ def gmail_sync():
  for mid in reversed(gmail_message_ids()):
   if con.execute('select 1 from messages where id=?',(mid,)).fetchone():continue
   m=api_json('https://gmail.googleapis.com/gmail/v1/users/me/messages/'+mid+'?format=raw');raw=base64.urlsafe_b64decode(m['raw']+'='*((4-len(m['raw'])%4)%4));folder=gmail_local_folder(m.get('labelIds'));lmtp_deliver_folder(raw,folder);con.execute('insert into messages(id,seen_at,folder) values(?,?,?)',(mid,int(time.time()),folder));con.commit();delivered+=1
- con.close();print('gmail_sync=OK delivered='+str(delivered));return 0
+ con.close();db.chmod(0o600);print('gmail_sync=OK delivered='+str(delivered));return 0
 
 if __name__=='__main__':
  if len(sys.argv)==2:

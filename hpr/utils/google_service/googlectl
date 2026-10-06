@@ -16,6 +16,8 @@ Health and testing:
   test full                  Real Calendar/Drive/YouTube tests + backup/restore; cleans temp cloud objects
   test mail                  Real Roundcube->Gmail->push->local test; leaves one self-addressed message
   test recovery              Restore the last live mail test plus OAuth/runtime state from Nitro
+  test supervisor            Kill persistent processes and prove automatic restart
+  test all                   Run full + mail + recovery + supervisor tests
 
 Synchronization and watches:
   sync [all|gmail|calendar|drive]
@@ -48,6 +50,7 @@ case "$cmd" in
   help|-h|--help) usage ;;
   status) exec "$PY" "$DIR/self_test.py" quick ;;
   start)
+    umask 077
     nohup /usr/bin/flock -n /data/var/google-service/pubsub-listen.lock "$PY" "$DIR/google_service.py" pubsub-listen >>/data/var/google-service/pubsub-listen.log 2>&1 </dev/null &
     nohup /usr/bin/flock -n /data/var/google-service/smtp-bridge.lock "$PY" "$DIR/gmail_smtp_bridge.py" >>/data/var/google-service/smtp-bridge.log 2>&1 </dev/null &
     nohup /usr/bin/flock -n /data/var/google-service/webhook-gateway.lock "$PY" "$DIR/webhook_gateway.py" >>/data/var/google-service/webhook-gateway.log 2>&1 </dev/null &
@@ -62,7 +65,15 @@ case "$cmd" in
       *) echo "Unknown log: $which" >&2; exit 2 ;;
     esac
     exec tail -n "$lines" "$file" ;;
-  test) exec "$PY" "$DIR/self_test.py" "${1:-quick}" ;;
+  test)
+    mode=${1:-quick}
+    if [ "$mode" = all ]; then
+      "$PY" "$DIR/self_test.py" full
+      "$PY" "$DIR/self_test.py" mail
+      "$PY" "$DIR/self_test.py" recovery
+      exec "$PY" "$DIR/self_test.py" supervisor
+    fi
+    exec "$PY" "$DIR/self_test.py" "$mode" ;;
   sync)
     target=${1:-all}
     case "$target" in

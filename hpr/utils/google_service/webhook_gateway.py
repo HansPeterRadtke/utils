@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
+import os
 import http.server,json,hmac,subprocess,sys
 from pathlib import Path
 sys.path.insert(0,'/data/src/github/utils/hpr/utils/google_service')
 from event_bus import emit
+os.umask(0o077)
 ROOT=Path('/data/var/google-service')
 SYNC={
  'calendar':['/usr/bin/flock','-n',str(ROOT/'calendar-sync.lock'),'/usr/bin/python3','/data/src/github/utils/hpr/utils/google_service/google_service.py','calendar-sync'],

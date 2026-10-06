@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
+import os
 import asyncio,sys
 sys.path.insert(0,'/data/src/github/utils/hpr/utils/google_service')
 from google_service import gmail_send_raw
+os.umask(0o077)
 HOST='127.0.0.1';PORT=16202;MAX=30*1024*1024
 async def reply(w,s):w.write((s+'\r\n').encode());await w.drain()
 async def handle(r,w):

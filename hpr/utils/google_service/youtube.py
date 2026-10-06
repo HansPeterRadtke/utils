@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 """Small YouTube operator CLI using the shared Multiverse OAuth credential."""
+import os
+os.umask(0o077)
 import argparse
 import json
 import mimetypes
@@ -143,19 +145,25 @@ def delete_cmd(args):
     return 0
 
 
-def privacy_cmd(args):
+def set_privacy(video_id, privacy):
     current = g.api_json("https://www.googleapis.com/youtube/v3/videos?" + urllib.parse.urlencode({
-        "part": "status", "id": args.video_id
+        "part": "status", "id": video_id
     })).get("items", [])
     if len(current) != 1:
         raise RuntimeError("Video not found")
-    status = current[0].get("status", {}); status["privacyStatus"] = args.privacy
+    status = current[0].get("status", {}); status["privacyStatus"] = privacy
     token, _ = g.access_token()
     response = requests.put("https://www.googleapis.com/youtube/v3/videos", params={"part": "status"},
                             headers={"Authorization": "Bearer " + token, "Content-Type": "application/json"},
-                            data=json.dumps({"id": args.video_id, "status": status}), timeout=60)
+                            data=json.dumps({"id": video_id, "status": status}), timeout=60)
     response.raise_for_status()
-    print("privacy=" + str(response.json().get("status", {}).get("privacyStatus")))
+    actual = response.json().get("status", {}).get("privacyStatus")
+    if actual != privacy:
+        raise RuntimeError(f"YouTube returned privacy {actual!r}, expected {privacy!r}")
+    return actual
+
+def privacy_cmd(args):
+    print("privacy=" + str(set_privacy(args.video_id, args.privacy)))
     return 0
 
 
@@ -175,6 +183,11 @@ def self_test_cmd(_args):
             if len(check) != 1 or check[0].get("status", {}).get("privacyStatus") != "private":
                 raise RuntimeError("Private upload verification failed")
             print("upload=OK")
+            if set_privacy(vid, "unlisted") != "unlisted":
+                raise RuntimeError("Unlisted privacy transition failed")
+            if set_privacy(vid, "private") != "private":
+                raise RuntimeError("Private privacy transition failed")
+            print("privacy_transitions=OK")
         finally:
             if vid:
                 delete_video(vid)

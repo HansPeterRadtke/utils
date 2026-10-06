@@ -5,6 +5,7 @@ import imaplib
 import json
 from pathlib import Path
 import socket
+import stat
 import sqlite3
 import subprocess
 import sys
@@ -131,6 +132,19 @@ def quick():
         return f'{len(install_jobs.jobs())} managed jobs present'
     s.check('Scheduled jobs', schedules)
     s.check('Retired app password absent', lambda: (s.require(not (MAIL / 'secrets/gmail-app-password').exists(), 'obsolete app password exists') or 'absent'))
+    def private_runtime():
+        s.require(stat.S_IMODE(RUNTIME.stat().st_mode) & 0o077 == 0, 'runtime directory is group/world accessible')
+        names = ('oauth-token.json', 'pubsub.json', 'calendar-watch.json', 'drive-watch.json',
+                 'gmail-sync.sqlite3', 'calendar.sqlite3', 'drive.sqlite3', 'events.sqlite3',
+                 'pubsub-listen.log', 'smtp-bridge.log', 'webhook-gateway.log')
+        bad = []
+        for name in names:
+            path = RUNTIME / name
+            if path.exists() and stat.S_IMODE(path.stat().st_mode) & 0o077:
+                bad.append(name + ':' + oct(stat.S_IMODE(path.stat().st_mode)))
+        s.require(not bad, 'group/world-readable runtime files: ' + ', '.join(bad))
+        return 'runtime dir/files private'
+    s.check('Runtime file permissions', private_runtime)
     for name in ('gmail-sync.sqlite3', 'calendar.sqlite3', 'drive.sqlite3', 'events.sqlite3'):
         s.check('SQLite ' + name, lambda n=name: sqlite_ok(RUNTIME / n))
     def dovecot():
@@ -186,15 +200,53 @@ def live_mail():
     print('mail_test=PASS; one real self-addressed test message remains by design')
     return 0
 
+def supervisor():
+    patterns = (
+        '^/usr/bin/python3 /data/src/github/utils/hpr/utils/google_service/google_service.py pubsub-listen$',
+        '^/usr/bin/python3 /data/src/github/utils/hpr/utils/google_service/gmail_smtp_bridge.py$',
+        '^/usr/bin/python3 /data/src/github/utils/hpr/utils/google_service/webhook_gateway.py$',
+        '^/usr/bin/flock -n /data/var/google-service/pubsub-listen.lock ',
+        '^/usr/bin/flock -n /data/var/google-service/smtp-bridge.lock ',
+        '^/usr/bin/flock -n /data/var/google-service/webhook-gateway.lock ',
+    )
+    print('[RUN] kill persistent Google-service processes')
+    for pattern in patterns:
+        p = subprocess.run(['pgrep', '-f', pattern], capture_output=True, text=True)
+        for raw in p.stdout.split():
+            try:
+                import os; os.kill(int(raw), 15)
+            except (ProcessLookupError, ValueError):
+                pass
+    time.sleep(2)
+    for port in (16202, 16301):
+        try:
+            tcp_open(port)
+            raise RuntimeError(f'port {port} still listening immediately after kill')
+        except (ConnectionRefusedError, OSError):
+            pass
+    print('[RUN] wait for one-minute cron supervisors')
+    deadline = time.time() + 95
+    while time.time() < deadline:
+        try:
+            tcp_open(16202); tcp_open(16301)
+            p = subprocess.run(['pgrep', '-f', '^/usr/bin/python3 /data/src/github/utils/hpr/utils/google_service/google_service.py pubsub-listen$'], capture_output=True, text=True)
+            if p.returncode == 0 and p.stdout.strip():
+                print('supervisor_recovery=PASS')
+                return quick()
+        except OSError:
+            pass
+        time.sleep(2)
+    raise RuntimeError('managed processes did not recover within 95 seconds')
+
 def recovery():
     run_command('live-message backup/recovery', ['/usr/bin/python3', str(REPO / 'utils/mail_service/verify_live_recovery.py')], 360)
     return 0
 
 def main():
     parser = argparse.ArgumentParser(description='Multiverse Google-service health and integration tests')
-    parser.add_argument('mode', choices=('quick', 'full', 'mail', 'recovery'), nargs='?', default='quick')
+    parser.add_argument('mode', choices=('quick', 'full', 'mail', 'recovery', 'supervisor'), nargs='?', default='quick')
     args = parser.parse_args()
-    return {'quick': quick, 'full': full, 'mail': live_mail, 'recovery': recovery}[args.mode]()
+    return {'quick': quick, 'full': full, 'mail': live_mail, 'recovery': recovery, 'supervisor': supervisor}[args.mode]()
 
 if __name__ == '__main__':
     raise SystemExit(main())

@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
-import base64,hashlib,json,os,secrets,sys,urllib.parse,urllib.request,urllib.error
+import os
+import base64,hashlib,json,secrets,sys,urllib.parse,urllib.request,urllib.error
 from pathlib import Path
+os.umask(0o077)
 SECRET=Path('/data/infra/secrets/google.txt'); STATE=Path('/data/var/google-service/oauth-state.json'); MAIL_PENDING=Path('/data/var/mail/secrets/oauth-pending.json'); TOKEN=Path('/data/var/google-service/oauth-token.json')
 SCOPES=['https://www.googleapis.com/auth/gmail.modify','https://www.googleapis.com/auth/gmail.send','https://www.googleapis.com/auth/calendar','https://www.googleapis.com/auth/drive','https://www.googleapis.com/auth/youtube.upload','https://www.googleapis.com/auth/youtube']
 CLOUD_SCOPE='https://www.googleapis.com/auth/cloud-platform'

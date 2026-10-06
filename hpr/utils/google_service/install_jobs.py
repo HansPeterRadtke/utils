@@ -10,9 +10,9 @@ MARKER = "# multiverse-google-"
 
 
 def jobs():
-    listener = f"/usr/bin/flock -n {RUNTIME}/pubsub-listen.lock {PYTHON} {BASE}/google_service.py pubsub-listen >>{RUNTIME}/pubsub-listen.log 2>&1"
-    smtp = f"/usr/bin/flock -n {RUNTIME}/smtp-bridge.lock {PYTHON} {BASE}/gmail_smtp_bridge.py >>{RUNTIME}/smtp-bridge.log 2>&1"
-    webhook = f"/usr/bin/flock -n {RUNTIME}/webhook-gateway.lock {PYTHON} {BASE}/webhook_gateway.py >>{RUNTIME}/webhook-gateway.log 2>&1"
+    listener = f"umask 077; /usr/bin/flock -n {RUNTIME}/pubsub-listen.lock {PYTHON} {BASE}/google_service.py pubsub-listen >>{RUNTIME}/pubsub-listen.log 2>&1"
+    smtp = f"umask 077; /usr/bin/flock -n {RUNTIME}/smtp-bridge.lock {PYTHON} {BASE}/gmail_smtp_bridge.py >>{RUNTIME}/smtp-bridge.log 2>&1"
+    webhook = f"umask 077; /usr/bin/flock -n {RUNTIME}/webhook-gateway.lock {PYTHON} {BASE}/webhook_gateway.py >>{RUNTIME}/webhook-gateway.log 2>&1"
     return [
         f"@reboot {listener} {MARKER}pubsub-start",
         f"* * * * * {listener} {MARKER}pubsub-supervisor",
@@ -20,12 +20,12 @@ def jobs():
         f"* * * * * {smtp} {MARKER}smtp-supervisor",
         f"@reboot {webhook} {MARKER}webhook-start",
         f"* * * * * {webhook} {MARKER}webhook-supervisor",
-        f"11 2 * * * /usr/bin/flock -n {RUNTIME}/calendar-watch.lock {PYTHON} {BASE}/google_service.py calendar-watch >/dev/null 2>&1 {MARKER}calendar-watch",
-        f"21 2 * * * /usr/bin/flock -n {RUNTIME}/drive-watch.lock {PYTHON} {BASE}/google_service.py drive-watch >/dev/null 2>&1 {MARKER}drive-watch",
-        f"13 3 * * * /usr/bin/flock -n {RUNTIME}/gmail-watch.lock {PYTHON} {BASE}/google_service.py gmail-watch >/dev/null 2>&1 {MARKER}gmail-watch",
-        f"17 */6 * * * /usr/bin/flock -n {RUNTIME}/gmail-sync.lock {PYTHON} {BASE}/google_service.py gmail-sync >/dev/null 2>&1 {MARKER}gmail-sync",
-        f"31 */6 * * * /usr/bin/flock -n {RUNTIME}/calendar-sync.lock {PYTHON} {BASE}/google_service.py calendar-sync >/dev/null 2>&1 {MARKER}calendar-sync",
-        f"43 */6 * * * /usr/bin/flock -n {RUNTIME}/drive-sync.lock {PYTHON} {BASE}/google_service.py drive-sync >/dev/null 2>&1 {MARKER}drive-sync",
+        f"11 2 * * * umask 077; /usr/bin/flock -n {RUNTIME}/calendar-watch.lock {PYTHON} {BASE}/google_service.py calendar-watch >/dev/null 2>&1 {MARKER}calendar-watch",
+        f"21 2 * * * umask 077; /usr/bin/flock -n {RUNTIME}/drive-watch.lock {PYTHON} {BASE}/google_service.py drive-watch >/dev/null 2>&1 {MARKER}drive-watch",
+        f"13 3 * * * umask 077; /usr/bin/flock -n {RUNTIME}/gmail-watch.lock {PYTHON} {BASE}/google_service.py gmail-watch >/dev/null 2>&1 {MARKER}gmail-watch",
+        f"17 */6 * * * umask 077; /usr/bin/flock -n {RUNTIME}/gmail-sync.lock {PYTHON} {BASE}/google_service.py gmail-sync >/dev/null 2>&1 {MARKER}gmail-sync",
+        f"31 */6 * * * umask 077; /usr/bin/flock -n {RUNTIME}/calendar-sync.lock {PYTHON} {BASE}/google_service.py calendar-sync >/dev/null 2>&1 {MARKER}calendar-sync",
+        f"43 */6 * * * umask 077; /usr/bin/flock -n {RUNTIME}/drive-sync.lock {PYTHON} {BASE}/google_service.py drive-sync >/dev/null 2>&1 {MARKER}drive-sync",
     ]
 
 

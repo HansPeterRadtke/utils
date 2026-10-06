@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 """Send mail through the localhost OAuth SMTP bridge."""
+import os
+os.umask(0o077)
 import argparse
 from email.message import EmailMessage
 import json
