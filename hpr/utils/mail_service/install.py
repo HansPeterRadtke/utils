@@ -43,7 +43,7 @@ def main():
     imap_port = ports["local_mail_imap"]["base"]
     gateway_port = ports["mail_gateway"]["base"]
     directory(ROOT, 0o750, gid=WEB)
-    for name in ["home", "mailbox", "attachments", "getmail", "backup-metadata", "dovecot-state"]:
+    for name in ["home", "mailbox", "attachments", "backup-metadata", "dovecot-state"]:
         directory(ROOT / name)
     directory(ROOT / "run", 0o750, gid=WEB)
     directory(ROOT / "secrets", 0o2750, gid=WEB)
@@ -189,11 +189,12 @@ ExecStart=/usr/bin/python3 {SOURCE}/mail_service.py receive
 TimeoutStartSec=3h
 """)
     write("/etc/systemd/system/local-mail-receive.timer", """[Unit]
-Description=Retrieve Gmail and back up local mail
+Description=Fallback Gmail OAuth reconciliation
 [Timer]
-OnBootSec=2min
-OnUnitInactiveSec=5min
-RandomizedDelaySec=15s
+OnBootSec=5min
+OnUnitInactiveSec=6h
+RandomizedDelaySec=5min
+Persistent=true
 [Install]
 WantedBy=timers.target
 """)

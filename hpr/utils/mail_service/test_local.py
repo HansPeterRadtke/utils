@@ -89,14 +89,15 @@ class LocalMailTest(unittest.TestCase):
             self.assertEqual(fetch("/mail/", cookie)[0], 303)
         self.assertEqual(fetch("/auth", test_cookie(), CFG["gateway_port"])[0], 200)
 
-    def test_setup_requires_csrf_and_does_not_persist_bad_credentials(self):
-        before = (ROOT / "secrets/gmail-app-password").exists()
-        code, _, _ = fetch("/mail-setup/", test_cookie(), data=b"csrf=invalid&password=invalid")
-        self.assertEqual(code, 403)
-        self.assertEqual((ROOT / "secrets/gmail-app-password").exists(), before)
+    def test_setup_page_is_oauth_only_and_app_password_post_is_retired(self):
+        self.assertFalse((ROOT / "secrets/gmail-app-password").exists())
+        code, _, _ = fetch("/mail-setup/", test_cookie(), data=b"obsolete=1")
+        self.assertEqual(code, 410)
         code, _, body = fetch("/mail-setup/", test_cookie())
         self.assertEqual(code, 200)
-        self.assertIn(b"Google app password", body)
+        self.assertIn(b"authenticated through OAuth", body)
+        self.assertNotIn(b"Google app password", body)
+
 
     def test_roundcube_admin_sso(self):
         cookie = test_cookie()
@@ -115,31 +116,26 @@ class LocalMailTest(unittest.TestCase):
         self.assertIn(b"compose", body)
 
 
-    def test_gmail_discovery_and_non_destructive_import_configuration(self):
-        import configparser
+    def test_receive_invokes_oauth_gmail_sync(self):
         import tempfile
+        from types import SimpleNamespace
+        from unittest import mock
         import mail_service
-        special = [b'(\\All) "/" "[Gmail]/All Mail"', b'(\\Sent) "/" "[Gmail]/Sent Mail"',
-                   b'(\\Drafts) "/" "[Gmail]/Entw&APw-rfe"', b'(\\Junk) "/" "[Gmail]/Spam"',
-                   b'(\\Trash) "/" "[Gmail]/Trash"']
-        folders = mail_service.discover_folders(special)
-        self.assertEqual(folders["\\drafts"], "[Gmail]/Entw\u00fcrfe")
         original = mail_service.ROOT
         try:
             with tempfile.TemporaryDirectory() as temporary:
                 mail_service.ROOT = Path(temporary)
-                (Path(temporary) / "config.json").write_text(json.dumps(CFG))
-                mail_service.configure_getmail(folders)
-                configs = list(Path(temporary).glob("getmail/*/getmailrc"))
-                self.assertEqual(len(configs), 6)
-                for path in configs:
-                    config = configparser.ConfigParser()
-                    config.read(path)
-                    self.assertFalse(config.getboolean("options", "delete"))
-                    self.assertEqual(config["retriever"]["ca_certs"], "/etc/ssl/certs/ca-certificates.crt")
-                    self.assertEqual(config["destination"]["type"], "MDA_lmtp")
+                with mock.patch.object(mail_service.subprocess, "run", return_value=SimpleNamespace(returncode=0)) as run:
+                    mail_service.receive()
+                command = run.call_args.args[0]
+                self.assertEqual(command[-1], "gmail-sync")
+                self.assertIn("google_service.py", command[-2])
+                state = json.loads((Path(temporary) / "status.json").read_text())
+                self.assertTrue(state["connected"])
+                self.assertNotIn("app password", state["account_message"].lower())
         finally:
             mail_service.ROOT = original
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

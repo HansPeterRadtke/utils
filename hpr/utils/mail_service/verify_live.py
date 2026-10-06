@@ -77,33 +77,44 @@ def send():
         message = BytesParser(policy=policy.default).parsebytes(next(v[1] for v in data if isinstance(v,tuple)))
         if hashlib.sha256(next(message.iter_attachments()).get_payload(decode=True)).hexdigest() != state["attachment_sha256"]:
             raise RuntimeError("Sent attachment differs from the uploaded file")
-        state.update(webmail_sent=True, message_id=str(message["Message-ID"]))
+        state.update(webmail_sent=True, sent_message_id=str(message["Message-ID"]), message_id=str(message["Message-ID"]))
         save(state)
         print("Webmail sent the self-addressed message and saved its attachment intact.")
 
 def verify():
     state = json.loads(STATE.read_text())
-    receive()
-    with imap() as local:
-        local.select("INBOX",readonly=True)
-        result,ids=local.uid("search",None,"HEADER","Message-ID",'"'+state["message_id"]+'"')
-        if result != "OK" or not ids[0]:
-            raise RuntimeError("The test message has not been retrieved yet; retry verification, not sending")
-        uid=ids[0].split()[0]
-        _,data=local.uid("fetch",uid,"(BODY.PEEK[])")
-        raw=next(v[1] for v in data if isinstance(v,tuple))
-        message=BytesParser(policy=policy.default).parsebytes(raw)
-        attachment=next(message.iter_attachments()).get_payload(decode=True)
-        if hashlib.sha256(attachment).hexdigest()!=state["attachment_sha256"]:
-            raise RuntimeError("Received attachment failed byte-for-byte verification")
-        if str(message["Subject"]) != state["subject"]:
-            raise RuntimeError("Unexpected message content")
-        state.update(received=True, local_folder="INBOX", local_uid=uid.decode(),
-                     attachment_verified=True, verified_at=int(time.time()))
-        save(state)
-        status_update(live_delivery_tested_at=int(time.time()),
-            account_message="Sending, receiving, and attachment integrity passed. Server deletion remains disabled.")
-        print("Live webmail send, Gmail receipt, local retrieval and attachment integrity all passed.")
+    deadline = time.time() + 45
+    uid = None
+    raw = None
+    while time.time() < deadline:
+        receive()
+        with imap() as local:
+            local.select("INBOX", readonly=True)
+            result, ids = local.uid("search", None, "SUBJECT", '"' + state["subject"] + '"')
+            matches = ids[0].split() if result == "OK" else []
+            if len(matches) > 1:
+                raise RuntimeError("The unique live-test subject matched more than one local Inbox message")
+            if len(matches) == 1:
+                uid = matches[0]
+                _, data = local.uid("fetch", uid, "(BODY.PEEK[])")
+                raw = next(v[1] for v in data if isinstance(v, tuple))
+                break
+        time.sleep(2)
+    if raw is None:
+        raise RuntimeError("The test message has not been retrieved yet; retry verification, not sending")
+    message = BytesParser(policy=policy.default).parsebytes(raw)
+    if str(message["Subject"]) != state["subject"]:
+        raise RuntimeError("Unexpected message content")
+    attachment = next(message.iter_attachments()).get_payload(decode=True)
+    if hashlib.sha256(attachment).hexdigest() != state["attachment_sha256"]:
+        raise RuntimeError("Received attachment failed byte-for-byte verification")
+    state.update(received=True, local_folder="INBOX", local_uid=uid.decode(),
+                 incoming_message_id=str(message["Message-ID"]), attachment_verified=True,
+                 verified_at=int(time.time()))
+    save(state)
+    status_update(live_delivery_tested_at=int(time.time()),
+        account_message="OAuth webmail send, Gmail push, local retrieval, and attachment integrity passed. Remote deletion remains disabled.")
+    print("Live Roundcube send, Gmail receipt, local retrieval and attachment integrity all passed.")
 
 if __name__ == "__main__":
     import argparse

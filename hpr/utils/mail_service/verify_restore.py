@@ -47,12 +47,26 @@ def main():
         assert next(restored_message.iter_attachments()).get_payload(decode=True) == ATTACHMENT
         with sqlite3.connect(restored / "backup-metadata/roundcube.sqlite3") as database:
             assert database.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
-        # Verify every restored regular-file byte against the source where immutable.
+        # Verify every restored immutable secret byte and the Production OAuth credential.
         for secret in ("local-password", "roundcube-key", "backup-password"):
             assert (ROOT / "secrets" / secret).read_bytes() == (restored / "secrets" / secret).read_bytes()
+        google_live = Path("/data/var/google-service")
+        google_restored = target / "data/var/google-service"
+        live_token = json.loads((google_live / "oauth-token.json").read_text())
+        restored_token = json.loads((google_restored / "oauth-token.json").read_text())
+        assert restored_token.get("refresh_token") == live_token.get("refresh_token")
+        assert "refresh_token_expires_in" not in restored_token
+        restored_google_dbs = []
+        for name in ("gmail-sync.sqlite3", "calendar.sqlite3", "drive.sqlite3", "events.sqlite3"):
+            db = google_restored / "backup-metadata" / name
+            if db.exists():
+                with sqlite3.connect(db) as database:
+                    assert database.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
+                restored_google_dbs.append(name)
         print(json.dumps({"snapshot": snapshot, "message_restored": True, "attachment_bytes": len(ATTACHMENT),
                           "attachment_sha256": hashlib.sha256(ATTACHMENT).hexdigest(),
-                          "webmail_database_integrity": "ok", "secret_files_restored": True}))
+                          "webmail_database_integrity": "ok", "secret_files_restored": True,
+                          "production_oauth_restored": True, "google_databases_restored": restored_google_dbs}))
     finally:
         with imap() as client:
             client.delete(folder)

@@ -69,10 +69,12 @@ class portal_mail extends rcube_plugin
     }
     public function before_send($args)
     {
-        $file = '/data/var/google-service/oauth-token.json';
-        if (!is_readable($file)) {
+        $socket = @stream_socket_client('tcp://127.0.0.1:16202', $errno, $errstr, 1);
+        if (!$socket) {
             $args['abort'] = true;
-            $args['error'] = 'Google OAuth is not connected.';
+            $args['error'] = 'Local OAuth mail sender is unavailable.';
+        } else {
+            fclose($socket);
         }
         return $args;
     }

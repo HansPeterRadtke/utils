@@ -1,0 +1,89 @@
+#!/bin/sh
+set -eu
+DIR=/data/src/github/utils/hpr/utils/google_service
+PY=/usr/bin/python3
+MAIL_DIR=/data/src/github/utils/hpr/utils/mail_service
+
+usage() {
+cat <<'EOF'
+Usage: googlectl COMMAND [ARGS]
+
+Health and testing:
+  status                     Non-mutating health check
+  start                      Start persistent listener/SMTP/webhook processes now
+  logs [pubsub|smtp|webhook] [N]
+  test quick                 Same as status
+  test full                  Real Calendar/Drive/YouTube tests + backup/restore; cleans temp cloud objects
+  test mail                  Real Roundcube->Gmail->push->local test; leaves one self-addressed message
+  test recovery              Restore the last live mail test plus OAuth/runtime state from Nitro
+
+Synchronization and watches:
+  sync [all|gmail|calendar|drive]
+  renew [all|gmail|calendar|drive]
+  events [N]                 Show newest normalized CloudEvents
+  jobs check|install|show     Check or reinstall managed cron jobs
+
+Mail:
+  mail --to ADDRESS --subject TEXT [--body TEXT|--body-file FILE] [--attach FILE ...]
+  backup                     Create encrypted Nitro backup
+  restore-test               Create/restore a disposable backup test
+
+YouTube:
+  youtube channel
+  youtube list [--limit N]
+  youtube upload FILE --title TEXT [--description TEXT] [--privacy private|unlisted|public]
+  youtube privacy VIDEO_ID private|unlisted|public
+  youtube delete VIDEO_ID
+  youtube self-test           Private upload/verify/delete test
+
+OAuth/setup:
+  oauth-start                Print a new Production OAuth authorization URL
+  pubsub-setup               Ensure Gmail Pub/Sub topic/subscription/IAM exist
+EOF
+}
+
+cmd=${1:-help}
+[ $# -gt 0 ] && shift || true
+case "$cmd" in
+  help|-h|--help) usage ;;
+  status) exec "$PY" "$DIR/self_test.py" quick ;;
+  start)
+    nohup /usr/bin/flock -n /data/var/google-service/pubsub-listen.lock "$PY" "$DIR/google_service.py" pubsub-listen >>/data/var/google-service/pubsub-listen.log 2>&1 </dev/null &
+    nohup /usr/bin/flock -n /data/var/google-service/smtp-bridge.lock "$PY" "$DIR/gmail_smtp_bridge.py" >>/data/var/google-service/smtp-bridge.log 2>&1 </dev/null &
+    nohup /usr/bin/flock -n /data/var/google-service/webhook-gateway.lock "$PY" "$DIR/webhook_gateway.py" >>/data/var/google-service/webhook-gateway.log 2>&1 </dev/null &
+    sleep 1
+    exec "$PY" "$DIR/self_test.py" quick ;;
+  logs)
+    which=${1:-pubsub}; lines=${2:-100}
+    case "$which" in
+      pubsub) file=/data/var/google-service/pubsub-listen.log ;;
+      smtp) file=/data/var/google-service/smtp-bridge.log ;;
+      webhook) file=/data/var/google-service/webhook-gateway.log ;;
+      *) echo "Unknown log: $which" >&2; exit 2 ;;
+    esac
+    exec tail -n "$lines" "$file" ;;
+  test) exec "$PY" "$DIR/self_test.py" "${1:-quick}" ;;
+  sync)
+    target=${1:-all}
+    case "$target" in
+      all) "$PY" "$DIR/google_service.py" gmail-sync; "$PY" "$DIR/google_service.py" calendar-sync; "$PY" "$DIR/google_service.py" drive-sync ;;
+      gmail|calendar|drive) exec "$PY" "$DIR/google_service.py" "$target-sync" ;;
+      *) echo "Unknown sync target: $target" >&2; exit 2 ;;
+    esac ;;
+  renew)
+    target=${1:-all}
+    case "$target" in
+      all) "$PY" "$DIR/google_service.py" gmail-watch; "$PY" "$DIR/google_service.py" calendar-watch; "$PY" "$DIR/google_service.py" drive-watch ;;
+      gmail|calendar|drive) exec "$PY" "$DIR/google_service.py" "$target-watch" ;;
+      *) echo "Unknown renew target: $target" >&2; exit 2 ;;
+    esac ;;
+  events) exec "$PY" "$DIR/event_bus.py" recent "${1:-20}" ;;
+  jobs) exec "$PY" "$DIR/install_jobs.py" "${1:-check}" ;;
+  mail) exec "$PY" "$DIR/mail_send.py" "$@" ;;
+  backup) exec "$PY" "$MAIL_DIR/mail_service.py" backup ;;
+  restore-test) exec "$PY" "$MAIL_DIR/verify_restore.py" ;;
+  youtube) exec "$PY" "$DIR/youtube.py" "$@" ;;
+  oauth-start) exec "$PY" "$DIR/oauth_bootstrap.py" start-cloud ;;
+  pubsub-setup) exec "$PY" "$DIR/google_service.py" pubsub-setup ;;
+  *) echo "Unknown command: $cmd" >&2; usage >&2; exit 2 ;;
+esac
